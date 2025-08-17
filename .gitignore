@@ -89,3 +89,4 @@ data/processed/
 *.parquet
 *.db
 *.sqlite
+uploads
