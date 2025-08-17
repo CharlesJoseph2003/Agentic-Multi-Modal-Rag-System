@@ -156,4 +156,10 @@ async def process_single_file(upload_file: UploadFile) -> Dict[str, Any]:
         # Always cleanup temp file
         cleanup_temp_file(tmp_path)
 
+def vectordb_output_processing(query_result):
+    documents = query_result['documents'][0]
+    metadatas = query_result['metadatas'][0]
+    return documents, metadatas
+    
+
 
