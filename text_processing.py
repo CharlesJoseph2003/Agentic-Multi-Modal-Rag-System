@@ -27,8 +27,8 @@ class TextProcessing:
         chunks = list(chunk_iter)
         return [c.text for c in chunks]
 
-test = TextProcessing(r"C:\Users\chuck\Downloads\Charles_Joseph_Resume_Updated (5).pdf")
-print(test.pdf_to_text())
+# test = TextProcessing(r"C:\Users\chuck\Downloads\Charles_Joseph_Resume_Updated (5).pdf")
+# print(test.pdf_to_text())
 
     # def pdf_to_chunks(self):
     #     doc = DocumentConverter().convert(source=self.file_path).document
