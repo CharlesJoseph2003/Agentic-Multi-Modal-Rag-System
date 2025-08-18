@@ -5,13 +5,18 @@ from fastapi import  UploadFile
 from text_processing import TextProcessing
 from text_embedding import Embeddings
 from chroma_db import VectorDB
+from audio_processing import Audio
 
 CHUNK_DIR = Path("uploads/chunks")
 CHUNK_DIR.mkdir(parents=True, exist_ok=True)
 
 text_embedding = Embeddings()
 vector_db = VectorDB()
+audio_process = Audio()
 
+def create_case_id() -> str:
+    """Generate a unique case ID that will be shared across all related files"""
+    return f"case_{uuid.uuid4().hex[:12]}"
 
 async def save_uploaded_file_to_temp(upload_file: UploadFile) -> Path:
     # Reset file pointer to beginning
@@ -78,6 +83,52 @@ def process_chunks_for_storage(chunks: List[Any], doc_id: str, filename: str) ->
     
     return chunk_ids, chunk_texts, chunk_embeddings, chunk_metadatas
 
+async def process_audio_for_case(file_path: str, case_id: str, audio_filename: str) -> Dict[str, Any]:
+    """
+    Process audio file and store in ChromaDB with case ID.
+    
+    Args:
+        file_path: Path to audio file
+        case_id: Case ID to link with other documents
+        audio_filename: Original audio filename
+        
+    Returns:
+        Dictionary with processing results
+    """
+    # Process audio
+    speech_conversion = audio_process.speech_to_text(file_path)
+    cleaned_audio = audio_process.clean_audio(speech_conversion)
+    
+    # Generate embedding
+    embedding = text_embedding.embed_text(cleaned_audio)
+    
+    # Create unique ID for this audio chunk
+    audio_id = f"{case_id}_audio_0"
+    
+    # Prepare metadata
+    metadata = {
+        'case_id': case_id,
+        'doc_type': 'audio_transcription',
+        'original_filename': audio_filename,
+        'chunk_index': 0,
+        'total_chunks': 1
+    }
+    
+    # Store in ChromaDB
+    vector_db.collection.add(
+        ids=[audio_id],
+        documents=[cleaned_audio],
+        embeddings=[embedding],
+        metadatas=[metadata]
+    )
+    
+    return {
+        "case_id": case_id,
+        "audio_filename": audio_filename,
+        "transcription_length": len(cleaned_audio),
+        "doc_type": "audio_transcription"
+    }
+
 
 def save_chunks_to_jsonl(chunks: List[Any], doc_id: str) -> Path:
     """
@@ -109,51 +160,64 @@ def cleanup_temp_file(file_path: Path) -> None:
     except OSError:
         pass  # File might already be deleted or inaccessible
 
-
-async def process_single_file(upload_file: UploadFile) -> Dict[str, Any]:
+async def process_single_file_with_case(upload_file: UploadFile, case_id: str) -> Dict[str, Any]:
     """
-    Process a single uploaded file through the entire pipeline.
-    
-    Args:
-        upload_file: The uploaded file to process
-        
-    Returns:
-        Dictionary with processing results
+    Process a single uploaded file with a specific case ID.
     """
-    # Save to temp file
     tmp_path = await save_uploaded_file_to_temp(upload_file)
     
     try:
-        # Generate document ID and chunk the document
+        # Generate document ID (but keep case_id for linking)
         doc_id = uuid.uuid4().hex
         tp = TextProcessing(str(tmp_path))
         chunks = tp.pdf_to_chunks()
         
-        # Process chunks for storage
-        chunk_ids, chunk_texts, embeddings, metadatas = process_chunks_for_storage(
-            chunks, doc_id, upload_file.filename
-        )
+        # Modified metadata to include case_id
+        chunk_ids = []
+        chunk_texts = []
+        chunk_embeddings = []
+        chunk_metadatas = []
+        
+        for i, chunk in enumerate(chunks):
+            chunk_text = chunk if isinstance(chunk, str) else chunk.get('text', str(chunk))
+            embedding = text_embedding.embed_text(chunk_text)
+            
+            chunk_ids.append(f"{doc_id}_chunk_{i}")
+            chunk_texts.append(chunk_text)
+            chunk_embeddings.append(embedding)
+            
+            metadata = {
+                'case_id': case_id,  # Add case_id here
+                'doc_id': doc_id,
+                'doc_type': 'document',
+                'original_filename': upload_file.filename,
+                'chunk_index': i,
+                'total_chunks': len(chunks)
+            }
+            
+            chunk_metadatas.append(metadata)
         
         # Store in ChromaDB
         vector_db.collection.add(
             ids=chunk_ids,
             documents=chunk_texts,
-            embeddings=embeddings,
-            metadatas=metadatas
+            embeddings=chunk_embeddings,
+            metadatas=chunk_metadatas
         )
         
-        # Save chunks to JSONL file
+        # Save chunks to JSONL
         out_path = save_chunks_to_jsonl(chunks, doc_id)
         
         return {
+            "case_id": case_id,
             "original_filename": upload_file.filename,
             "doc_id": doc_id,
             "chunks_path": str(out_path),
             "num_chunks": len(chunks),
+            "doc_type": "document"
         }
         
     finally:
-        # Always cleanup temp file
         cleanup_temp_file(tmp_path)
 
 def vectordb_output_processing(query_result):
