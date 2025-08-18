@@ -100,19 +100,26 @@ export default function CasesList({ refreshTrigger, onCaseSelect }) {
                     Created: {formatDate(case_item.created_at)}
                   </div>
                   
-                  {case_item.files && (
-                    <div className="flex gap-4 text-sm">
+                  <div className="flex gap-4 text-sm">
+                    {case_item.files && (
+                      <>
+                        <span className="text-gray-500">
+                          📄 {case_item.files.filter(f => f.file_type === 'document').length} docs
+                        </span>
+                        <span className="text-gray-500">
+                          🎵 {case_item.files.filter(f => f.file_type === 'audio').length} audio
+                        </span>
+                        <span className="text-gray-500">
+                          🖼️ {case_item.files.filter(f => f.file_type === 'image').length} images
+                        </span>
+                      </>
+                    )}
+                    {case_item.tasks && (
                       <span className="text-gray-500">
-                        📄 {case_item.files.filter(f => f.file_type === 'document').length} docs
+                        ✅ {case_item.tasks.length} tasks
                       </span>
-                      <span className="text-gray-500">
-                        🎵 {case_item.files.filter(f => f.file_type === 'audio').length} audio
-                      </span>
-                      <span className="text-gray-500">
-                        🖼️ {case_item.files.filter(f => f.file_type === 'image').length} images
-                      </span>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
                 
                 <div className="text-right">

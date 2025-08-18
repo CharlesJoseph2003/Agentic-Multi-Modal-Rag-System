@@ -2,6 +2,7 @@ import os
 from typing import List, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from .text_embedding import Embeddings
 from .audio_processing import Audio
 from .image_processing import ImageProcessing
@@ -126,7 +127,7 @@ async def list_cases(limit: int = 10, offset: int = 0):
     """List all cases with pagination"""
     
     cases = supabase.table('cases')\
-        .select("*, files(count)")\
+        .select("*, files(*), tasks(*)")\
         .order('created_at', desc=True)\
         .range(offset, offset + limit - 1)\
         .execute()
@@ -140,26 +141,194 @@ async def list_cases(limit: int = 10, offset: int = 0):
 
 @app.get("/case/{case_id}")
 async def get_case_details(case_id: str):
-    """Get case details with all files"""
-    case = supabase.table('cases').select("*").eq('id', case_id).single().execute()
-    if not case.data:
-        raise HTTPException(status_code=404, detail="Case not found")
-    
-    files = supabase.table('files').select("*").eq('case_id', case_id).execute()
-    tasks = supabase.table('tasks').select("*").eq('case_id', case_id).execute()
-    
-    # Organize files by type
-    organized_files = {
-        "documents": [f for f in files.data if f['file_type'] == 'document'],
-        "audio": [f for f in files.data if f['file_type'] == 'audio'],
-        "images": [f for f in files.data if f['file_type'] == 'image']
-    }
-    
-    return {
-        "case": case.data,
-        "files": organized_files,
-        "tasks": tasks.data
-    }
+    """Get comprehensive case details with all files, content, and tasks"""
+    try:
+        # Get case info
+        case = supabase.table('cases').select("*").eq('id', case_id).single().execute()
+        if not case.data:
+            raise HTTPException(status_code=404, detail="Case not found")
+        
+        # Get all files for this case
+        files = supabase.table('files').select("*").eq('case_id', case_id).execute()
+        print(f"DEBUG: Files query returned {len(files.data)} files")
+        if files.data:
+            print(f"DEBUG: First file: {files.data[0]}")
+        
+        # Get all tasks for this case
+        tasks = supabase.table('tasks').select("*").eq('case_id', case_id).order('priority').execute()
+        
+        # Get document content from ChromaDB for this case
+        case_content = await get_case_content_from_chromadb(case_id)
+        print(f"DEBUG: Retrieved case content keys: {case_content.keys()}")
+        print(f"DEBUG: Documents count: {len(case_content.get('documents', []))}")
+        if case_content.get('documents'):
+            print(f"DEBUG: First document metadata: {case_content['documents'][0].get('metadata', {})}")
+        
+        # Organize files by type with enhanced info
+        organized_files = {
+            "document": [],
+            "audio": [],
+            "image": []
+        }
+        
+        for file_record in files.data:
+            file_type = file_record['file_type']
+            print(f"DEBUG: Processing file: {file_record['original_filename']}, type: {file_type}")
+            if file_type in organized_files:
+                # Add file metadata
+                file_info = {
+                    "id": file_record['id'],
+                    "filename": file_record['original_filename'],
+                    "file_path": file_record.get('file_path', ''),
+                    "created_at": file_record['created_at'],
+                    "file_size": file_record.get('file_size'),
+                    "processing_status": file_record.get('processing_status', 'completed')
+                }
+                
+                # Add content preview for documents and audio (transcriptions)
+                if file_type == 'document':
+                    # Find matching content from ChromaDB documents
+                    matching_content = [
+                        content for content in case_content.get('documents', [])
+                        if content.get('metadata', {}).get('original_filename') == file_record['original_filename']
+                    ]
+                    print(f"DEBUG: Looking for file: {file_record['original_filename']}")
+                    print(f"DEBUG: Found {len(matching_content)} matching chunks")
+                    if matching_content:
+                        # Combine all chunks for this file
+                        full_content = "\n\n".join([chunk['text'] for chunk in matching_content])
+                        file_info['content'] = full_content[:2000] + "..." if len(full_content) > 2000 else full_content
+                        file_info['total_chunks'] = len(matching_content)
+                        print(f"DEBUG: Added content preview of length: {len(file_info['content'])}")
+                    else:
+                        print(f"DEBUG: No matching content found for {file_record['original_filename']}")
+                
+                elif file_type == 'audio':
+                    # Find matching content from ChromaDB audio transcriptions
+                    matching_content = [
+                        content for content in case_content.get('audio_transcriptions', [])
+                        if content.get('metadata', {}).get('original_filename') == file_record['original_filename']
+                    ]
+                    if matching_content:
+                        # Combine all chunks for this file
+                        full_content = "\n\n".join([chunk['text'] for chunk in matching_content])
+                        file_info['content'] = full_content[:2000] + "..." if len(full_content) > 2000 else full_content
+                        file_info['total_chunks'] = len(matching_content)
+                
+                organized_files[file_type].append(file_info)
+                print(f"DEBUG: Added {file_type} file to organized_files. Total {file_type}s: {len(organized_files[file_type])}")
+            else:
+                print(f"DEBUG: File type '{file_type}' not in organized_files keys: {list(organized_files.keys())}")
+        
+        # Organize tasks by priority
+        organized_tasks = {
+            "high": [t for t in tasks.data if t.get('priority') == 'high'],
+            "medium": [t for t in tasks.data if t.get('priority') == 'medium'],
+            "low": [t for t in tasks.data if t.get('priority') == 'low']
+        }
+        
+        return {
+            "case": case.data,
+            "files": organized_files,
+            "tasks": {
+                "total": len(tasks.data),
+                "by_priority": organized_tasks,
+                "all": tasks.data
+            },
+            "content_summary": {
+                "total_chunks": len(case_content),
+                "document_count": len(organized_files["document"]),
+                "audio_count": len(organized_files["audio"]),
+                "image_count": len(organized_files["image"]),
+                "task_count": len(tasks.data)
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving case details: {str(e)}")
+
+@app.get("/download/{file_id}")
+async def download_file(file_id: str):
+    """Download a file by its ID"""
+    try:
+        # Get file info from Supabase
+        file_record = supabase.table('files').select("*").eq('id', file_id).single().execute()
+        
+        if not file_record.data:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        file_path = file_record.data.get('storage_path')
+        original_filename = file_record.data.get('original_filename')
+        
+        print(f"DEBUG: Looking for file at path: {file_path}")
+        
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail=f"File not found on disk: {file_path}")
+        
+        return FileResponse(
+            path=file_path,
+            filename=original_filename,
+            media_type='application/octet-stream'
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
+
+@app.get("/audio/{file_id}")
+async def serve_audio(file_id: str):
+    """Serve audio file from Supabase storage"""
+    try:
+        print(f"DEBUG: Audio request for file_id: {file_id}")
+        
+        # Get file info from Supabase
+        file_record = supabase.table('files').select("*").eq('id', file_id).single().execute()
+        print(f"DEBUG: File record query result: {file_record.data}")
+        
+        if not file_record.data:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        storage_path = file_record.data.get('storage_path')
+        mime_type = file_record.data.get('mime_type', 'audio/mpeg')
+        
+        if not storage_path:
+            raise HTTPException(status_code=404, detail="Audio file path not found")
+            
+        print(f"DEBUG: Getting signed URL for storage path: {storage_path}")
+        
+        # Get a signed URL from Supabase storage
+        try:
+            # Create a signed URL that expires in 24 hours
+            signed_url_response = supabase.storage.from_('construction_files').create_signed_url(storage_path, 86400)
+            signed_url = signed_url_response.get('signedURL')
+            
+            if signed_url:
+                print(f"DEBUG: Generated signed URL: {signed_url}")
+                from fastapi.responses import RedirectResponse
+                return RedirectResponse(url=signed_url)
+            else:
+                print(f"DEBUG: No signed URL generated, trying direct download")
+                # Fallback to direct download
+                file_data = supabase.storage.from_('construction_files').download(storage_path)
+                print(f"DEBUG: Successfully downloaded {len(file_data)} bytes")
+                
+                from fastapi.responses import Response
+                return Response(
+                    content=file_data,
+                    media_type=mime_type,
+                    headers={
+                        "Accept-Ranges": "bytes",
+                        "Content-Length": str(len(file_data)),
+                        "Cache-Control": "public, max-age=3600"
+                    }
+                )
+            
+        except Exception as storage_error:
+            print(f"DEBUG: Storage error: {str(storage_error)}")
+            raise HTTPException(status_code=404, detail=f"Audio file not accessible: {str(storage_error)}")
+        
+    except Exception as e:
+        print(f"DEBUG: Audio endpoint error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error serving audio: {str(e)}")
 
 @app.get("/case/{case_id}/tasks")
 async def get_case_tasks(case_id: str):

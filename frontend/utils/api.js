@@ -42,10 +42,8 @@ class ApiClient {
         console.error('Cases response error:', errorText);
         throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
-
-      const result = await response.json();
-      console.log('Cases fetched successfully:', result);
-      return result;
+      
+      return response.json();
     } catch (error) {
       console.error('Error fetching cases:', error);
       throw error;
@@ -59,8 +57,8 @@ class ApiClient {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-
-      return await response.json();
+      
+      return response.json();
     } catch (error) {
       console.error('Error fetching case details:', error);
       throw error;

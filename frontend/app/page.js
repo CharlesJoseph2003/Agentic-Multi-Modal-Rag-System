@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import CaseUpload from '../components/CaseUpload';
 import CasesList from '../components/CasesList';
+import CaseDetailView from '../components/CaseDetailView';
 
 export default function Home() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [selectedCase, setSelectedCase] = useState(null);
+  const [showCaseDetail, setShowCaseDetail] = useState(false);
 
   const handleCaseCreated = (newCase) => {
     console.log('New case created:', newCase);
@@ -16,8 +18,13 @@ export default function Home() {
 
   const handleCaseSelect = (caseItem) => {
     setSelectedCase(caseItem);
-    // You can add navigation to case detail page here
+    setShowCaseDetail(true);
     console.log('Selected case:', caseItem);
+  };
+
+  const handleBackToCases = () => {
+    setShowCaseDetail(false);
+    setSelectedCase(null);
   };
 
   return (
@@ -42,30 +49,25 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column - Case Upload */}
-          <div>
-            <CaseUpload onCaseCreated={handleCaseCreated} />
-          </div>
+        {showCaseDetail && selectedCase ? (
+          <CaseDetailView 
+            caseId={selectedCase.id}
+            onBack={handleBackToCases}
+          />
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Column - Case Upload */}
+            <div>
+              <CaseUpload onCaseCreated={handleCaseCreated} />
+            </div>
 
-          {/* Right Column - Cases List */}
-          <div>
-            <CasesList 
-              refreshTrigger={refreshTrigger}
-              onCaseSelect={handleCaseSelect}
-            />
-          </div>
-        </div>
-
-        {/* Selected Case Info */}
-        {selectedCase && (
-          <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-lg font-medium text-blue-900 mb-2">
-              Selected Case: {selectedCase.id}
-            </h3>
-            <p className="text-blue-700">
-              Click on a case to view details. Case detail page coming soon!
-            </p>
+            {/* Right Column - Cases List */}
+            <div>
+              <CasesList 
+                refreshTrigger={refreshTrigger}
+                onCaseSelect={handleCaseSelect}
+              />
+            </div>
           </div>
         )}
       </main>
