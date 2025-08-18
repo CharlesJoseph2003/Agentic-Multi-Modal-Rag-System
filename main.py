@@ -1,24 +1,26 @@
 # main.py
-from typing import List, Optional, Annotated
+from typing import List
 from fastapi import FastAPI, File, UploadFile
-from utils import create_case_id, process_single_file_with_case, save_uploaded_file_to_temp, process_audio_for_case, cleanup_temp_file, vectordb_output_processing
+from utils import create_case_id, process_single_file_with_case, save_uploaded_file_to_temp, process_audio_for_case, cleanup_temp_file, vectordb_output_processing, process_image_for_case
 from text_embedding import Embeddings
 from audio_processing import Audio
+from image_processing import ImageProcessing
 
 
 app = FastAPI()
 text_embedding = Embeddings()
 audio_process = Audio()
+image_process = ImageProcessing()
 
 
 @app.post("/create_case/")
-async def create_new_case(files: List[UploadFile] = File(default=[]),
-    audio_files: List[UploadFile] = File(default=[])):
+async def create_new_case(files: List[UploadFile] = File(default=[]), audio_files: List[UploadFile] = File(default=[]), 
+image_files: List[UploadFile] = File(default=[])):
     """
     Create a new case with documents and audio files.
     All files will share the same case_id.
     """
-    if not files and not audio_files:
+    if not files and not audio_files and not image_files:
         return {"error": "At least one document or audio file must be provided"}
     
     # Generate case ID for all files
@@ -26,7 +28,8 @@ async def create_new_case(files: List[UploadFile] = File(default=[]),
     results = {
         "case_id": case_id,
         "documents": [],
-        "audio": []
+        "audio": [],
+        "images": []
     }
     
     # Process documents if provided
@@ -48,6 +51,19 @@ async def create_new_case(files: List[UploadFile] = File(default=[]),
                     audio_file.filename
                 )
                 results["audio"].append(result)
+            finally:
+                cleanup_temp_file(tmp_path)
+
+    if image_files:
+        for image_file in image_files:
+            tmp_path = await save_uploaded_file_to_temp(image_file)
+            try:
+                result = await process_image_for_case(
+                    str(tmp_path), 
+                    case_id, 
+                    image_file.filename
+                )
+                results["images"].append(result)
             finally:
                 cleanup_temp_file(tmp_path)
     

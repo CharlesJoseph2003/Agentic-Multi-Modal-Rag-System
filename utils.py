@@ -6,6 +6,7 @@ from text_processing import TextProcessing
 from text_embedding import Embeddings
 from chroma_db import VectorDB
 from audio_processing import Audio
+from image_processing import ImageProcessing
 
 CHUNK_DIR = Path("uploads/chunks")
 CHUNK_DIR.mkdir(parents=True, exist_ok=True)
@@ -13,6 +14,7 @@ CHUNK_DIR.mkdir(parents=True, exist_ok=True)
 text_embedding = Embeddings()
 vector_db = VectorDB()
 audio_process = Audio()
+image_process = ImageProcessing()
 
 def create_case_id() -> str:
     """Generate a unique case ID that will be shared across all related files"""
@@ -130,6 +132,53 @@ async def process_audio_for_case(file_path: str, case_id: str, audio_filename: s
     }
 
 
+
+async def process_image_for_case(file_path: str, case_id: str, image_filename: str) -> Dict[str, Any]:
+    """
+    Process image file and store in ChromaDB with case ID.
+    
+    Args:
+        file_path: Path to image file
+        case_id: Case ID to link with other documents
+        image_filename: Original image filename
+        
+    Returns:
+        Dictionary with processing results
+    """
+    # Process image
+    image_to_text = image_process.image_description(file_path)
+    
+    # Generate embedding
+    embedding = text_embedding.embed_text(image_to_text)
+    
+    # Create unique ID for this image chunk
+    image_id = f"{case_id}_image_0"
+    
+    # Prepare metadata
+    metadata = {
+        'case_id': case_id,
+        'doc_type': 'image_conversion',
+        'original_filename': image_filename,
+        'chunk_index': 0,
+        'total_chunks': 1
+    }
+    
+    # Store in ChromaDB
+    vector_db.collection.add(
+        ids=[image_id],
+        documents=[image_to_text],
+        embeddings=[embedding],
+        metadatas=[metadata]
+    )
+    
+    return {
+        "case_id": case_id,
+        "image_filename": image_filename,
+        "description_length": len(image_to_text),
+        "doc_type": "image"
+    }
+
+
 def save_chunks_to_jsonl(chunks: List[Any], doc_id: str) -> Path:
     """
     Save chunks to a JSONL file for backup/reference.
@@ -224,6 +273,3 @@ def vectordb_output_processing(query_result):
     documents = query_result['documents'][0]
     metadatas = query_result['metadatas'][0]
     return documents, metadatas
-    
-
-
