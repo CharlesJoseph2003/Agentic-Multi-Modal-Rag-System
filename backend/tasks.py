@@ -1,11 +1,11 @@
 import os
 import json
-from typing import Dict, List  # Add this
-from openai import OpenAI  # Change from 'import openai as OpenAI'
-from chroma_db import VectorDB
+from typing import Dict, List
+from openai import OpenAI
+from .chroma_db import VectorDB
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from text_embedding import Embeddings
+from .text_embedding import Embeddings
 
 load_dotenv()
 

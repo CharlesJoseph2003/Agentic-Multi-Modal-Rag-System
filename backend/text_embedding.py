@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
-from chroma_db import VectorDB
+from .chroma_db import VectorDB
 from typing import List, Dict, Any
 
 load_dotenv()

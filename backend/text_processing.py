@@ -26,22 +26,3 @@ class TextProcessing:
         chunk_iter = self.chunker.chunk(dl_doc=doc)
         chunks = list(chunk_iter)
         return [c.text for c in chunks]
-
-# test = TextProcessing(r"C:\Users\chuck\Downloads\Charles_Joseph_Resume_Updated (5).pdf")
-# print(test.pdf_to_text())
-
-    # def pdf_to_chunks(self):
-    #     doc = DocumentConverter().convert(source=self.file_path).document
-    #     chunker = HybridChunker()
-    #     chunk_iter = chunker.chunk(dl_doc=doc)
-    #     for i, chunk in enumerate(chunk_iter):
-    #         print(f"=== {i} ===")
-    #         print(f"chunk.text:\n{f'{chunk.text[:300]}…'!r}")
-    #         enriched_text = chunker.contextualize(chunk=chunk)
-    #         print(f"chunker.contextualize(chunk):\n{f'{enriched_text[:300]}…'!r}")
-
-
-# source = r"C:\Users\chuck\Downloads\Charles_Joseph_Resume_Updated (5).pdf"  # PDF path or URL
-# converter = DocumentConverter()
-# result = converter.convert(source)
-# print(result.document.export_to_markdown())  # output: "### Docling Technical Report[...]"

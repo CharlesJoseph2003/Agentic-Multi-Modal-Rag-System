@@ -1,13 +1,13 @@
 import os
 from typing import List, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from text_embedding import Embeddings
-from audio_processing import Audio
-from image_processing import ImageProcessing
-from database import create_case_in_supabase
-from utils import create_case_id, process_single_file_with_case, save_uploaded_file_to_temp, process_audio_for_case, \
+from .text_embedding import Embeddings
+from .audio_processing import Audio
+from .image_processing import ImageProcessing
+from .database import create_case_in_supabase
+from .utils import create_case_id, process_single_file_with_case, save_uploaded_file_to_temp, process_audio_for_case, \
 cleanup_temp_file, vectordb_output_processing, process_image_for_case, get_case_content_from_chromadb
-from tasks import generate_tasks_with_ai, store_tasks_in_supabase
+from .tasks import generate_tasks_with_ai, store_tasks_in_supabase
 from supabase import create_client, Client
 
 
@@ -218,5 +218,4 @@ async def search(query):
 #     cleaned_audio = audio_process.clean_audio(speech_conversion)
 #     embedded_audio = text_embedding.embed_text(cleaned_audio)
     
-
 

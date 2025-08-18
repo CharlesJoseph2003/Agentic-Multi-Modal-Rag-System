@@ -2,12 +2,12 @@ import os, uuid, json, tempfile
 from typing import List, Tuple, Any, Dict
 from pathlib import Path
 from fastapi import  UploadFile
-from text_processing import TextProcessing
-from text_embedding import Embeddings
-from chroma_db import VectorDB
-from audio_processing import Audio
-from image_processing import ImageProcessing
-from database import upload_file_to_supabase
+from .text_processing import TextProcessing
+from .text_embedding import Embeddings
+from .chroma_db import VectorDB
+from .audio_processing import Audio
+from .image_processing import ImageProcessing
+from .database import upload_file_to_supabase
 
 CHUNK_DIR = Path("uploads/chunks")
 CHUNK_DIR.mkdir(parents=True, exist_ok=True)
@@ -287,7 +287,6 @@ def vectordb_output_processing(query_result):
     documents = query_result['documents'][0]
     metadatas = query_result['metadatas'][0]
     return documents, metadatas
-# In utils.py, update the content organization function
 
 async def get_case_content_from_chromadb(case_id: str) -> Dict[str, List[Dict]]:
     """Retrieve all content for a case from ChromaDB"""
