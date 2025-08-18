@@ -5,6 +5,7 @@ from openai import OpenAI  # Change from 'import openai as OpenAI'
 from chroma_db import VectorDB
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from text_embedding import Embeddings
 
 load_dotenv()
 
@@ -16,39 +17,9 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+text_embedding = Embeddings()
 
-async def get_case_content_from_chromadb(case_id: str) -> Dict[str, List[Dict]]:
-    """Retrieve all content for a case from ChromaDB"""
-    
-    # Get all chunks for this case
-    results = vector_db.collection.get(
-        where={"case_id": case_id},
-        include=["documents", "metadatas"]
-    )
-    
-    # Organize by document type
-    organized_content = {
-        "documents": [],
-        "audio_transcriptions": [],
-        "image_descriptions": []
-    }
-    
-    for i, (doc, metadata) in enumerate(zip(results['documents'], results['metadatas'])):
-        content_item = {
-            "text": doc,
-            "metadata": metadata,
-            "chunk_id": results['ids'][i] if 'ids' in results else None
-        }
-        
-        doc_type = metadata.get('doc_type', 'document')
-        if doc_type == 'audio_transcription':
-            organized_content['audio_transcriptions'].append(content_item)
-        elif doc_type == 'image':
-            organized_content['image_descriptions'].append(content_item)
-        else:
-            organized_content['documents'].append(content_item)
-    
-    return organized_content
+
 async def generate_tasks_with_ai(case_content: Dict[str, List[Dict]], case_id: str) -> List[Dict]:
     """Use AI to analyze case content and generate tasks"""
     
@@ -135,10 +106,10 @@ Example format:
         task['source_chunks'] = [item['chunk_id'] for content_list in case_content.values() 
                                 for item in content_list if item['chunk_id']]
     
-    return tasks['tasks']
-
-async def store_tasks_in_supabase(tasks: List[Dict]) -> List[Dict]:
-    """Store generated tasks in Supabase"""
+    return tasks
+    
+async def store_tasks_in_supabase(tasks: List[Dict], case_id: str) -> List[Dict]:
+    """Store generated tasks in Supabase AND ChromaDB"""
     
     # Prepare tasks for database
     db_tasks = []
@@ -154,6 +125,47 @@ async def store_tasks_in_supabase(tasks: List[Dict]) -> List[Dict]:
         }
         db_tasks.append(db_task)
     
-    # Insert all tasks
+    # Insert into Supabase
     result = supabase.table('tasks').insert(db_tasks).execute()
+    
+    # Now add tasks to ChromaDB for searchability
+    task_ids = []
+    task_texts = []
+    task_embeddings = []
+    task_metadatas = []
+    
+    for i, task in enumerate(result.data):
+        # Create searchable text from task
+        task_text = f"Task: {task['title']}\nDescription: {task['description']}\nPriority: {task['priority']}\nCategory: {task['category']}\nReasoning: {task['ai_reasoning']}"
+        
+        # Generate embedding
+        embedding = text_embedding.embed_text(task_text)
+        
+        # Create unique ID for task in ChromaDB
+        task_chromadb_id = f"{case_id}_task_{task['id'][:8]}"
+        
+        task_ids.append(task_chromadb_id)
+        task_texts.append(task_text)
+        task_embeddings.append(embedding)
+        
+        # Metadata for the task
+        metadata = {
+            'case_id': case_id,
+            'task_id': task['id'],
+            'doc_type': 'task',
+            'title': task['title'],
+            'priority': task['priority'],
+            'category': task['category']
+        }
+        task_metadatas.append(metadata)
+    
+    # Store in ChromaDB
+    if task_ids:
+        vector_db.collection.add(
+            ids=task_ids,
+            documents=task_texts,
+            embeddings=task_embeddings,
+            metadatas=task_metadatas
+        )
+    
     return result.data

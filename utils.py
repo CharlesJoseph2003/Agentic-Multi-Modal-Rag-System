@@ -287,3 +287,38 @@ def vectordb_output_processing(query_result):
     documents = query_result['documents'][0]
     metadatas = query_result['metadatas'][0]
     return documents, metadatas
+# In utils.py, update the content organization function
+
+async def get_case_content_from_chromadb(case_id: str) -> Dict[str, List[Dict]]:
+    """Retrieve all content for a case from ChromaDB"""
+    
+    results = vector_db.collection.get(
+        where={"case_id": case_id},
+        include=["documents", "metadatas"]
+    )
+    
+    organized_content = {
+        "documents": [],
+        "audio_transcriptions": [],
+        "image_descriptions": [],
+        "tasks": []  # Add tasks category
+    }
+    
+    for i, (doc, metadata) in enumerate(zip(results['documents'], results['metadatas'])):
+        content_item = {
+            "text": doc,
+            "metadata": metadata,
+            "chunk_id": results['ids'][i]
+        }
+        
+        doc_type = metadata.get('doc_type', 'document')
+        if doc_type == 'audio_transcription':
+            organized_content['audio_transcriptions'].append(content_item)
+        elif doc_type == 'image':
+            organized_content['image_descriptions'].append(content_item)
+        elif doc_type == 'task':
+            organized_content['tasks'].append(content_item)
+        else:
+            organized_content['documents'].append(content_item)
+    
+    return organized_content

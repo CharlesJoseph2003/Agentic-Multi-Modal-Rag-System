@@ -1,4 +1,3 @@
-# main.py
 import os
 from typing import List, Optional
 from fastapi import FastAPI, File, UploadFile
@@ -7,8 +6,8 @@ from audio_processing import Audio
 from image_processing import ImageProcessing
 from database import create_case_in_supabase
 from utils import create_case_id, process_single_file_with_case, save_uploaded_file_to_temp, process_audio_for_case, \
-cleanup_temp_file, vectordb_output_processing, process_image_for_case
-from tasks import generate_tasks_with_ai, get_case_content_from_chromadb, store_tasks_in_supabase
+cleanup_temp_file, vectordb_output_processing, process_image_for_case, get_case_content_from_chromadb
+from tasks import generate_tasks_with_ai, store_tasks_in_supabase
 from supabase import create_client, Client
 
 
@@ -87,7 +86,7 @@ image_files: List[UploadFile] = File(default=[])):
         
         # Store tasks in Supabase
         if generated_tasks:
-            stored_tasks = await store_tasks_in_supabase(generated_tasks)
+            stored_tasks = await store_tasks_in_supabase(generated_tasks, case_id)
             results["tasks"] = {
                 "generated": len(stored_tasks),
                 "tasks": stored_tasks
@@ -107,8 +106,6 @@ image_files: List[UploadFile] = File(default=[])):
     
     return results
     
-
-
 @app.get("/cases")
 async def list_cases(limit: int = 10, offset: int = 0):
     """List all cases with pagination"""
@@ -125,8 +122,6 @@ async def list_cases(limit: int = 10, offset: int = 0):
         "limit": limit,
         "offset": offset
     }
-
-
 
 @app.get("/case/{case_id}/tasks")
 async def get_case_tasks(case_id: str):
@@ -166,6 +161,14 @@ async def get_all_tasks(
         "tasks": tasks.data
     }
 
+    
+@app.get("/search/")
+async def search(query):
+    output = text_embedding.get_query(query)
+    processed_text = vectordb_output_processing(output)
+    result = text_embedding.llm_processing(processed_text, query)
+    return result
+   
 # @app.delete("/task/{task_id}")
 # async def delete_task(task_id: str):
 #     """Delete a specific task"""
@@ -176,15 +179,6 @@ async def get_all_tasks(
 #         raise HTTPException(status_code=404, detail="Task not found")
     
 #     return {"message": "Task deleted successfully"}
-    
-@app.get("/search/")
-async def search(query):
-    output = text_embedding.get_query(query)
-    processed_text = vectordb_output_processing(output)
-    result = text_embedding.llm_processing(processed_text, query)
-    return result
-   
-
 
 # @app.post("/uploadfiles/")
 # async def create_upload_files(files: Annotated[List[UploadFile], File(description="Multiple files as UploadFile")]):
