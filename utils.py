@@ -7,6 +7,7 @@ from text_embedding import Embeddings
 from chroma_db import VectorDB
 from audio_processing import Audio
 from image_processing import ImageProcessing
+from database import upload_file_to_supabase
 
 CHUNK_DIR = Path("uploads/chunks")
 CHUNK_DIR.mkdir(parents=True, exist_ok=True)
@@ -86,17 +87,16 @@ def process_chunks_for_storage(chunks: List[Any], doc_id: str, filename: str) ->
     return chunk_ids, chunk_texts, chunk_embeddings, chunk_metadatas
 
 async def process_audio_for_case(file_path: str, case_id: str, audio_filename: str) -> Dict[str, Any]:
-    """
-    Process audio file and store in ChromaDB with case ID.
+    """Process audio file and store in ChromaDB with case ID."""
     
-    Args:
-        file_path: Path to audio file
-        case_id: Case ID to link with other documents
-        audio_filename: Original audio filename
-        
-    Returns:
-        Dictionary with processing results
-    """
+    # Upload raw audio to Supabase FIRST
+    supabase_file = await upload_file_to_supabase(
+        file_path=file_path,
+        case_id=case_id,
+        file_type="audio",
+        original_filename=audio_filename
+    )
+    
     # Process audio
     speech_conversion = audio_process.speech_to_text(file_path)
     cleaned_audio = audio_process.clean_audio(speech_conversion)
@@ -105,13 +105,14 @@ async def process_audio_for_case(file_path: str, case_id: str, audio_filename: s
     embedding = text_embedding.embed_text(cleaned_audio)
     
     # Create unique ID for this audio chunk
-    audio_id = f"{case_id}_audio_0"
+    audio_id = f"{case_id}_audio_{uuid.uuid4().hex[:8]}"
     
     # Prepare metadata
     metadata = {
         'case_id': case_id,
         'doc_type': 'audio_transcription',
         'original_filename': audio_filename,
+        'supabase_file_id': supabase_file['id'],
         'chunk_index': 0,
         'total_chunks': 1
     }
@@ -127,24 +128,24 @@ async def process_audio_for_case(file_path: str, case_id: str, audio_filename: s
     return {
         "case_id": case_id,
         "audio_filename": audio_filename,
+        "supabase_file_id": supabase_file['id'],
+        "storage_url": supabase_file['file_url'],
         "transcription_length": len(cleaned_audio),
         "doc_type": "audio_transcription"
     }
 
 
-
 async def process_image_for_case(file_path: str, case_id: str, image_filename: str) -> Dict[str, Any]:
-    """
-    Process image file and store in ChromaDB with case ID.
+    """Process image file and store in ChromaDB with case ID."""
     
-    Args:
-        file_path: Path to image file
-        case_id: Case ID to link with other documents
-        image_filename: Original image filename
-        
-    Returns:
-        Dictionary with processing results
-    """
+    # Upload raw image to Supabase FIRST
+    supabase_file = await upload_file_to_supabase(
+        file_path=file_path,
+        case_id=case_id,
+        file_type="image",
+        original_filename=image_filename
+    )
+    
     # Process image
     image_to_text = image_process.image_description(file_path)
     
@@ -152,13 +153,14 @@ async def process_image_for_case(file_path: str, case_id: str, image_filename: s
     embedding = text_embedding.embed_text(image_to_text)
     
     # Create unique ID for this image chunk
-    image_id = f"{case_id}_image_0"
+    image_id = f"{case_id}_image_{uuid.uuid4().hex[:8]}"
     
     # Prepare metadata
     metadata = {
         'case_id': case_id,
-        'doc_type': 'image_conversion',
+        'doc_type': 'image',
         'original_filename': image_filename,
+        'supabase_file_id': supabase_file['id'],
         'chunk_index': 0,
         'total_chunks': 1
     }
@@ -174,6 +176,8 @@ async def process_image_for_case(file_path: str, case_id: str, image_filename: s
     return {
         "case_id": case_id,
         "image_filename": image_filename,
+        "supabase_file_id": supabase_file['id'],
+        "storage_url": supabase_file['file_url'],
         "description_length": len(image_to_text),
         "doc_type": "image"
     }
@@ -210,18 +214,25 @@ def cleanup_temp_file(file_path: Path) -> None:
         pass  # File might already be deleted or inaccessible
 
 async def process_single_file_with_case(upload_file: UploadFile, case_id: str) -> Dict[str, Any]:
-    """
-    Process a single uploaded file with a specific case ID.
-    """
+    """Process a single uploaded file with a specific case ID."""
+
     tmp_path = await save_uploaded_file_to_temp(upload_file)
     
     try:
-        # Generate document ID (but keep case_id for linking)
+        # Upload raw file to Supabase FIRST
+        supabase_file = await upload_file_to_supabase(
+            file_path=str(tmp_path),
+            case_id=case_id,
+            file_type="document",
+            original_filename=upload_file.filename
+        )
+        
+        # Then process for ChromaDB
         doc_id = uuid.uuid4().hex
         tp = TextProcessing(str(tmp_path))
         chunks = tp.pdf_to_chunks()
         
-        # Modified metadata to include case_id
+        # Process chunks for ChromaDB
         chunk_ids = []
         chunk_texts = []
         chunk_embeddings = []
@@ -236,10 +247,11 @@ async def process_single_file_with_case(upload_file: UploadFile, case_id: str) -
             chunk_embeddings.append(embedding)
             
             metadata = {
-                'case_id': case_id,  # Add case_id here
+                'case_id': case_id,
                 'doc_id': doc_id,
                 'doc_type': 'document',
                 'original_filename': upload_file.filename,
+                'supabase_file_id': supabase_file['id'],  # Link to Supabase
                 'chunk_index': i,
                 'total_chunks': len(chunks)
             }
@@ -261,6 +273,8 @@ async def process_single_file_with_case(upload_file: UploadFile, case_id: str) -
             "case_id": case_id,
             "original_filename": upload_file.filename,
             "doc_id": doc_id,
+            "supabase_file_id": supabase_file['id'],
+            "storage_url": supabase_file['file_url'],
             "chunks_path": str(out_path),
             "num_chunks": len(chunks),
             "doc_type": "document"

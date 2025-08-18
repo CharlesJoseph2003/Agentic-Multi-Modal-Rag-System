@@ -5,9 +5,9 @@ from transformers import AutoTokenizer
 
 class TextProcessing:
     EMBED_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
-    MAX_TOKENS = 600  # set to a small number for illustrative purposes
-    default_tokenizer = HuggingFaceTokenizer(tokenizer=AutoTokenizer.from_pretrained(EMBED_MODEL_ID),max_tokens=MAX_TOKENS)  # optional, by default derived from `tokenizer` for HF case
-    default_chunker = HybridChunker(tokenizer=default_tokenizer, merge_peers=True)  # optional, defaults to True
+    MAX_TOKENS = 600  
+    default_tokenizer = HuggingFaceTokenizer(tokenizer=AutoTokenizer.from_pretrained(EMBED_MODEL_ID),max_tokens=MAX_TOKENS) 
+    default_chunker = HybridChunker(tokenizer=default_tokenizer, merge_peers=True)  
     converter = DocumentConverter()
         
     def __init__(self, file_path, tokenizer=None, chunker=None):

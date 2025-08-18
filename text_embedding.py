@@ -22,10 +22,10 @@ class Embeddings:
         return response.data[0].embedding
 
     def get_query(self, query: str) -> str:
-    # Create embedding using the SAME model as ingestion
+    # Create embedding using the SAME model as ingestion - cannot be different because of dimensions
         query_embedding = self.embed_text(query)
         results = vector_db.collection.query(
-            query_embeddings=[query_embedding],  # Pass the embedding directly
+            query_embeddings=[query_embedding],  # have to pass the embedding directly
             n_results=5
         )
         return results

@@ -5,6 +5,7 @@ from utils import create_case_id, process_single_file_with_case, save_uploaded_f
 from text_embedding import Embeddings
 from audio_processing import Audio
 from image_processing import ImageProcessing
+from database import create_case_in_supabase
 
 
 app = FastAPI()
@@ -25,6 +26,9 @@ image_files: List[UploadFile] = File(default=[])):
     
     # Generate case ID for all files
     case_id = create_case_id()
+
+    await create_case_in_supabase(case_id)
+
     results = {
         "case_id": case_id,
         "documents": [],
