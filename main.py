@@ -1,6 +1,6 @@
 import os
 from typing import List, Optional
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from text_embedding import Embeddings
 from audio_processing import Audio
 from image_processing import ImageProcessing
@@ -123,6 +123,29 @@ async def list_cases(limit: int = 10, offset: int = 0):
         "offset": offset
     }
 
+@app.get("/case/{case_id}")
+async def get_case_details(case_id: str):
+    """Get case details with all files"""
+    case = supabase.table('cases').select("*").eq('id', case_id).single().execute()
+    if not case.data:
+        raise HTTPException(status_code=404, detail="Case not found")
+    
+    files = supabase.table('files').select("*").eq('case_id', case_id).execute()
+    tasks = supabase.table('tasks').select("*").eq('case_id', case_id).execute()
+    
+    # Organize files by type
+    organized_files = {
+        "documents": [f for f in files.data if f['file_type'] == 'document'],
+        "audio": [f for f in files.data if f['file_type'] == 'audio'],
+        "images": [f for f in files.data if f['file_type'] == 'image']
+    }
+    
+    return {
+        "case": case.data,
+        "files": organized_files,
+        "tasks": tasks.data
+    }
+
 @app.get("/case/{case_id}/tasks")
 async def get_case_tasks(case_id: str):
     """Get all tasks for a case"""
@@ -160,7 +183,6 @@ async def get_all_tasks(
         "total_tasks": len(tasks.data),
         "tasks": tasks.data
     }
-
     
 @app.get("/search/")
 async def search(query):
@@ -168,6 +190,8 @@ async def search(query):
     processed_text = vectordb_output_processing(output)
     result = text_embedding.llm_processing(processed_text, query)
     return result
+
+
    
 # @app.delete("/task/{task_id}")
 # async def delete_task(task_id: str):
