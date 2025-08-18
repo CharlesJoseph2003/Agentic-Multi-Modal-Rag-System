@@ -1,5 +1,6 @@
 import os
 from typing import List, Optional
+from datetime import datetime
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -330,6 +331,61 @@ async def serve_audio(file_id: str):
         print(f"DEBUG: Audio endpoint error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error serving audio: {str(e)}")
 
+@app.get("/image/{file_id}")
+async def serve_image(file_id: str):
+    """Serve image file from Supabase storage"""
+    try:
+        print(f"DEBUG: Image request for file_id: {file_id}")
+        
+        # Get file info from Supabase
+        file_record = supabase.table('files').select("*").eq('id', file_id).single().execute()
+        print(f"DEBUG: File record query result: {file_record.data}")
+        
+        if not file_record.data:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        storage_path = file_record.data.get('storage_path')
+        mime_type = file_record.data.get('mime_type', 'image/jpeg')
+        
+        if not storage_path:
+            raise HTTPException(status_code=404, detail="Image file path not found")
+            
+        print(f"DEBUG: Getting signed URL for storage path: {storage_path}")
+        
+        # Get a signed URL from Supabase storage
+        try:
+            # Create a signed URL that expires in 24 hours
+            signed_url_response = supabase.storage.from_('construction_files').create_signed_url(storage_path, 86400)
+            signed_url = signed_url_response.get('signedURL')
+            
+            if signed_url:
+                print(f"DEBUG: Generated signed URL: {signed_url}")
+                from fastapi.responses import RedirectResponse
+                return RedirectResponse(url=signed_url)
+            else:
+                print(f"DEBUG: No signed URL generated, trying direct download")
+                # Fallback to direct download
+                file_data = supabase.storage.from_('construction_files').download(storage_path)
+                print(f"DEBUG: Successfully downloaded {len(file_data)} bytes")
+                
+                from fastapi.responses import Response
+                return Response(
+                    content=file_data,
+                    media_type=mime_type,
+                    headers={
+                        "Content-Length": str(len(file_data)),
+                        "Cache-Control": "public, max-age=3600"
+                    }
+                )
+            
+        except Exception as storage_error:
+            print(f"DEBUG: Storage error: {str(storage_error)}")
+            raise HTTPException(status_code=404, detail=f"Image file not accessible: {str(storage_error)}")
+        
+    except Exception as e:
+        print(f"DEBUG: Image endpoint error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error serving image: {str(e)}")
+
 @app.get("/case/{case_id}/tasks")
 async def get_case_tasks(case_id: str):
     """Get all tasks for a case"""
@@ -369,11 +425,27 @@ async def get_all_tasks(
     }
     
 @app.get("/search/")
-async def search(query):
-    output = text_embedding.get_query(query)
-    processed_text = vectordb_output_processing(output)
-    result = text_embedding.llm_processing(processed_text, query)
-    return result
+async def search(query: str):
+    """Search across all case documents and return structured response"""
+    try:
+        print(f"DEBUG: Search query: {query}")
+        
+        # Get embeddings and search
+        output = text_embedding.get_query(query)
+        processed_text = vectordb_output_processing(output)
+        result = text_embedding.llm_processing(processed_text, query)
+        
+        # Structure the response for chat interface
+        return {
+            "response": result,
+            "query": query,
+            "sources": processed_text.get("sources", []) if isinstance(processed_text, dict) else [],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"DEBUG: Search error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
    

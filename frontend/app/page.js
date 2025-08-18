@@ -4,6 +4,7 @@ import { useState } from 'react';
 import CaseUpload from '../components/CaseUpload';
 import CasesList from '../components/CasesList';
 import CaseDetailView from '../components/CaseDetailView';
+import ChatInterface from '../components/ChatInterface';
 
 export default function Home() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -55,18 +56,31 @@ export default function Home() {
             onBack={handleBackToCases}
           />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
             {/* Left Column - Case Upload */}
             <div>
               <CaseUpload onCaseCreated={handleCaseCreated} />
             </div>
 
-            {/* Right Column - Cases List */}
+            {/* Middle Column - Cases List */}
             <div>
               <CasesList 
                 refreshTrigger={refreshTrigger}
                 onCaseSelect={handleCaseSelect}
               />
+            </div>
+
+            {/* Right Column - Global Chat */}
+            <div>
+              <div className="bg-white rounded-lg shadow-md">
+                <div className="p-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+                  <h2 className="font-semibold text-gray-800">💬 Global Search Chat</h2>
+                  <p className="text-sm text-gray-600">Search across all cases</p>
+                </div>
+                <div className="p-4">
+                  <ChatInterface caseId={null} />
+                </div>
+              </div>
             </div>
           </div>
         )}

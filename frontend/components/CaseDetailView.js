@@ -256,6 +256,31 @@ export default function CaseDetailView({ caseId, onBack }) {
                       Image
                     </span>
                   </div>
+                  
+                  {/* Image Preview */}
+                  <div className="mb-4">
+                    <img 
+                      src={`http://127.0.0.1:8000/image/${image.id}`}
+                      alt={image.filename}
+                      className="max-w-full h-auto rounded-lg shadow-sm border border-gray-200"
+                      style={{ maxHeight: '400px' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'block';
+                      }}
+                    />
+                    <div className="hidden text-center py-8 text-gray-500">
+                      <p>Unable to load image preview</p>
+                      <p className="text-sm">File: {image.filename}</p>
+                    </div>
+                  </div>
+
+                  {image.content && (
+                    <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">
+                      <p className="font-medium mb-2">AI Analysis:</p>
+                      <p className="whitespace-pre-wrap">{image.content}</p>
+                    </div>
+                  )}
                 </div>
               ))
             )}
