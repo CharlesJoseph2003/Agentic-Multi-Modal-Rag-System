@@ -35,24 +35,23 @@ class Embeddings:
         context_parts = []
         
         for i, (doc, meta) in enumerate(zip(documents, metadata)):
-            # Check document type and format accordingly
             doc_type = meta.get('doc_type', 'document')
             
             if doc_type == 'task':
-                # Format for tasks
                 source_info = f"[Source {i+1}: Task - {meta.get('title', 'Untitled Task')}]"
             else:
-                # Format for documents, audio, images
                 source_info = f"[Source {i+1}: {meta.get('original_filename', 'Unknown')}, Chunk {meta.get('chunk_index', '')}]"
             
             context_parts.append(f"{source_info}\n{doc}")
         
         context = "\n\n".join(context_parts)
         
-        prompt = f"""Based on the following context (which includes documents, tasks, audio transcriptions, and image descriptions), \
-        please answer the user's question. When you use information from the context, \
-        cite it using the source number (e.g., [Source 1], [Source 2]). If the answer cannot be found in the context, \
-        say "I cannot find that information in the provided documents."
+        # Use proper multiline strings instead of backslash continuation
+        system_message = """You are a helpful assistant that answers questions based solely on the provided context. 
+        The context may include documents, tasks, audio transcriptions, and image descriptions. 
+        Always cite your sources using [Source X] format when referencing information."""
+
+        user_message = f"""Based on the following context (which includes documents, tasks, audio transcriptions, and image descriptions), please answer the user's question. When you use information from the context, cite it using the source number (e.g., [Source 1], [Source 2]). If the answer cannot be found in the context, say "I cannot find that information in the provided documents."
 
         Context:
         {context}
@@ -64,11 +63,9 @@ class Embeddings:
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that answers questions based solely on the provided context. \
-        The context may include documents, tasks, audio transcriptions, and image descriptions. \
-        Always cite your sources using [Source X] format when referencing information."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
             ]
         )
-        
+    
         return response.choices[0].message.content

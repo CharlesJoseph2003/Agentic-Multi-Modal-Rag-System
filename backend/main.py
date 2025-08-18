@@ -1,6 +1,7 @@
 import os
 from typing import List, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from .text_embedding import Embeddings
 from .audio_processing import Audio
 from .image_processing import ImageProcessing
@@ -12,6 +13,15 @@ from supabase import create_client, Client
 
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 text_embedding = Embeddings()
 audio_process = Audio()
 image_process = ImageProcessing()
@@ -19,6 +29,11 @@ image_process = ImageProcessing()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "message": "Backend is running"}
 
 
 @app.post("/create_case/")
