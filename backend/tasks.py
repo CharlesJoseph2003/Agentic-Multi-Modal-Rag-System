@@ -22,15 +22,10 @@ text_embedding = Embeddings()
 
 async def generate_tasks_with_ai(case_content: Dict[str, List[Dict]], case_id: str) -> List[Dict]:
     """Use AI to analyze case content and generate tasks"""
-    
-    print(f"DEBUG: Starting task generation for case {case_id}")
-    print(f"DEBUG: Case content keys: {list(case_content.keys())}")
-    print(f"DEBUG: Content counts - docs: {len(case_content.get('documents', []))}, audio: {len(case_content.get('audio_transcriptions', []))}, images: {len(case_content.get('image_descriptions', []))}")
-    
+   
     # Check if we have any content to work with
     total_content = len(case_content.get('documents', [])) + len(case_content.get('audio_transcriptions', [])) + len(case_content.get('image_descriptions', []))
     if total_content == 0:
-        print(f"DEBUG: No content found for case {case_id}, skipping task generation")
         return []
     
     # Build context for LLM
@@ -95,9 +90,7 @@ Category must be: "safety", "compliance", "maintenance", "documentation", or "ge
 
     # Parse response
     try:
-        response_text = response.choices[0].message.content
-        print(f"DEBUG: Raw AI response: {response_text}")
-        
+        response_text = response.choices[0].message.content        
         # Clean up response if needed (remove markdown code blocks)
         if response_text.startswith("```json"):
             response_text = response_text.replace("```json", "").replace("```", "")
@@ -114,9 +107,7 @@ Category must be: "safety", "compliance", "maintenance", "documentation", or "ge
             json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
             if json_match:
                 response_text = json_match.group(0)
-        
-        print(f"DEBUG: Cleaned response: {response_text}")
-        
+                
         tasks_data = json.loads(response_text)
         
         # Get the list of tasks
@@ -125,15 +116,11 @@ Category must be: "safety", "compliance", "maintenance", "documentation", or "ge
         elif isinstance(tasks_data, dict) and 'tasks' in tasks_data:
             tasks = tasks_data['tasks']
         else:
-            print(f"DEBUG: Unexpected tasks_data format: {type(tasks_data)}")
             tasks = []
             
     except json.JSONDecodeError as e:
-        print(f"JSON decode error: {e}")
-        print(f"Response was: {response.choices[0].message.content}")
         tasks = []
     except Exception as e:
-        print(f"Unexpected error parsing tasks: {e}")
         tasks = []
     
     # Add case_id and source chunks to each task

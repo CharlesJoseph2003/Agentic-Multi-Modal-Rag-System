@@ -44,8 +44,12 @@ export default function Home() {
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center">
               <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-                <span className="bg-blue-600 text-white p-2 rounded-lg mr-2 shadow-sm">🏗️</span>
-                <span>Construction RAG System</span>
+                <div className="bg-gradient-to-br from-blue-500 to-blue-700 text-white p-2 rounded-xl mr-3 shadow-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <span>Chaero</span>
               </h1>
             </div>
             <div className="flex items-center space-x-4">
@@ -112,7 +116,7 @@ export default function Home() {
                       </div>
                       <div>
                         <h2 className="font-bold text-gray-800 text-lg">Global Search Chat</h2>
-                        <p className="text-sm text-gray-600">Search across all construction documents</p>
+                        <p className="text-sm text-gray-600">Search across all documents</p>
                       </div>
                     </div>
                   </div>

@@ -100,7 +100,7 @@ export default function ChatInterface({ caseId }) {
               <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
               </svg>
-              <h3 className="text-lg font-medium text-gray-900 mb-1">Welcome to Construction RAG Chat</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">Welcome to Chaero Chat</h3>
               <p className="text-sm mb-4">
                 {caseId 
                   ? "Ask questions about the documents, audio, or images in this case"
@@ -159,7 +159,7 @@ export default function ChatInterface({ caseId }) {
                   {/* Message Content */}
                   <div className="flex-1">
                     <p className="font-bold text-base mb-2 text-gray-900">
-                      {message.type === 'user' ? 'You' : 'Construction RAG'}
+                      {message.type === 'user' ? 'You' : 'Chaero'}
                     </p>
                     <div className="prose prose-base max-w-none">
                       <p className="whitespace-pre-wrap text-gray-800 leading-relaxed">{message.content}</p>
@@ -206,7 +206,7 @@ export default function ChatInterface({ caseId }) {
                     </div>
                   </div>
                   <div className="flex-1">
-                    <p className="font-bold text-base mb-2 text-gray-900">Construction RAG</p>
+                    <p className="font-bold text-base mb-2 text-gray-900">Chaero</p>
                     <div className="flex items-center">
                       <div className="animate-pulse flex space-x-3">
                         <div className="h-3 w-3 bg-blue-400 rounded-full"></div>
@@ -249,7 +249,7 @@ export default function ChatInterface({ caseId }) {
             </button>
           </div>
           <p className="text-sm text-center text-gray-600 mt-3 font-medium">
-            Construction RAG can make mistakes. Consider checking important information.  
+            Chaero can make mistakes. Consider checking important information.  
           </p>
         </form>
       </div>

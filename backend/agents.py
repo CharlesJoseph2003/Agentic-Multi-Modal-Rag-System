@@ -1,24 +1,32 @@
-from smolagents import Tool, ToolCallingAgent, HfApiModel
-from datetime import datetime
-from pydantic import BaseModel
+
+import os
+from smolagents import Tool, ToolCallingAgent, LiteLLMModel
+from .text_embedding import Embeddings
+from .audio_processing import Audio
+from .image_processing import ImageProcessing
+from .chroma_db import VectorDB
+from supabase import create_client, Client
 from .utils import vectordb_output_processing
 
-# Define Tools
+vector_db = VectorDB()
+text_embedding = Embeddings()
+audio_process = Audio()
+image_process = ImageProcessing()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
 class CaseDetailsTool(Tool):
     name = "get_case_details"
     description = "Get comprehensive details about a specific construction case including files, tasks, and content"
     inputs = {"case_id": {"type": "string", "description": "The case ID to get details for"}}
     output_type = "string"
     
-    def __init__(self, vector_db, supabase, client):
-        super().__init__()
-        self.vector_db = vector_db
-        self.supabase = supabase
-        self.client = client
-    
     def forward(self, case_id: str) -> str:
         # Get all chunks for this case from ChromaDB
-        case_results = self.vector_db.collection.get(
+        case_results = vector_db.collection.get(
             where={"case_id": case_id},
             include=["documents", "metadatas"]
         )
@@ -26,27 +34,50 @@ class CaseDetailsTool(Tool):
         if not case_results['ids']:
             return f"Case {case_id} not found"
         
-        # Get tasks from Supabase
-        tasks = self.supabase.table('tasks').select("*").eq('case_id', case_id).execute()
+        # Get tasks and files from Supabase
+        tasks = supabase.table('tasks').select("*").eq('case_id', case_id).execute()
+        files = supabase.table('files').select("*").eq('case_id', case_id).execute()
         
-        # Get files from Supabase
-        files = self.supabase.table('files').select("*").eq('case_id', case_id).execute()
+        # Organize content by type
+        doc_count = 0
+        audio_transcriptions = []
+        image_descriptions = []
+        documents = []
         
-        # Organize content
-        doc_count = len([m for m in case_results['metadatas'] if m.get('doc_type') == 'document'])
-        task_count = len(tasks.data)
-        audio_count = len([f for f in files.data if f.get('file_type') == 'audio'])
-        image_count = len([f for f in files.data if f.get('file_type') == 'image'])
+        for i, metadata in enumerate(case_results['metadatas']):
+            doc_type = metadata.get('doc_type', 'document')
+            content = case_results['documents'][i]
+            
+            if doc_type == 'audio_transcription':
+                audio_transcriptions.append(content)
+            elif doc_type == 'image':
+                image_descriptions.append(content)
+            elif doc_type == 'document':
+                documents.append(content)
+                doc_count += 1
         
-        # Build summary
-        summary = f"""Case {case_id} Summary:
+        # Build comprehensive summary
+        summary = f"""Case {case_id} Details:
 - Documents: {doc_count} files
-- Tasks: {task_count} (High: {len([t for t in tasks.data if t.get('priority') == 'high'])})
-- Audio files: {audio_count}
-- Images: {image_count}
-- Created: {files.data[0]['created_at'] if files.data else 'Unknown'}
-
-Key content: {case_results['documents'][0][:200] if case_results['documents'] else 'No content'}..."""
+- Tasks: {len(tasks.data)} (High: {len([t for t in tasks.data if t.get('priority') == 'high'])})
+- Audio files: {len([f for f in files.data if f.get('file_type') == 'audio'])}
+- Images: {len([f for f in files.data if f.get('file_type') == 'image'])}"""
+        
+        # Add audio transcriptions if available
+        if audio_transcriptions:
+            summary += f"\n\nAudio Transcriptions:\n"
+            for i, transcription in enumerate(audio_transcriptions[:3]):  # First 3
+                summary += f"{i+1}. {transcription[:300]}...\n"
+        
+        # Add image descriptions if available
+        if image_descriptions:
+            summary += f"\n\nImage Descriptions:\n"
+            for i, description in enumerate(image_descriptions[:3]):  # First 3
+                summary += f"{i+1}. {description[:200]}...\n"
+        
+        # Add document content
+        if documents:
+            summary += f"\n\nDocument Content:\n{documents[0][:300]}..."
         
         return summary
 
@@ -56,15 +87,11 @@ class SearchDocumentsTool(Tool):
     inputs = {"query": {"type": "string", "description": "Search query"}}
     output_type = "string"
     
-    def __init__(self, text_embedding):
-        super().__init__()
-        self.text_embedding = text_embedding
-    
     def forward(self, query: str) -> str:
         # Use existing search logic
-        output = self.text_embedding.get_query(query)
+        output = text_embedding.get_query(query)
         processed = vectordb_output_processing(output)
-        result = self.text_embedding.llm_processing(processed, query)
+        result = text_embedding.llm_processing(processed, query)
         
         return result
 
@@ -74,12 +101,8 @@ class ListCasesTool(Tool):
     inputs = {}
     output_type = "string"
     
-    def __init__(self, supabase):
-        super().__init__()
-        self.supabase = supabase
-    
     def forward(self) -> str:
-        cases = self.supabase.table('cases').select("id, created_at").execute()
+        cases = supabase.table('cases').select("id, created_at").execute()
         case_list = [f"- {c['id']} (created: {c['created_at']})" for c in cases.data]
         return f"Available cases ({len(cases.data)} total):\n" + "\n".join(case_list)
 
@@ -87,16 +110,12 @@ class TaskAnalysisTool(Tool):
     name = "analyze_tasks"
     description = "Get task analysis across cases or for a specific case"
     inputs = {
-        "case_id": {"type": "string", "description": "Optional case ID to filter tasks", "default": None}
+        "case_id": {"type": "string", "description": "Optional case ID to filter tasks", "nullable": True}
     }
     output_type = "string"
     
-    def __init__(self, supabase):
-        super().__init__()
-        self.supabase = supabase
-    
     def forward(self, case_id: str = None) -> str:
-        query = self.supabase.table('tasks').select("*")
+        query = supabase.table('tasks').select("*")
         if case_id:
             query = query.eq('case_id', case_id)
         
@@ -125,42 +144,3 @@ class TaskAnalysisTool(Tool):
         
         return summary
 
-# Initialize tools
-case_details_tool = CaseDetailsTool(vector_db, supabase, client)
-search_tool = SearchDocumentsTool(text_embedding)
-list_cases_tool = ListCasesTool(supabase)
-task_tool = TaskAnalysisTool(supabase)
-
-# Create the agent
-model = HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
-agent = ToolCallingAgent(
-    tools=[case_details_tool, search_tool, list_cases_tool, task_tool],
-    model=model,
-    system_prompt="""You are a construction project assistant. Help users find information about their cases.
-    
-When users ask about:
-- Specific cases → use get_case_details
-- Searching for content → use search_documents  
-- What cases exist → use list_all_cases
-- Tasks or priorities → use analyze_tasks
-
-You can use multiple tools to answer complex questions."""
-)
-
-# Single smart endpoint
-@app.post("/query")
-async def intelligent_query(request: dict):
-    """Single endpoint that handles all queries intelligently"""
-    query = request.get("query", "")
-    
-    try:
-        # Let the agent handle everything
-        result = agent.run(query)
-        
-        return {
-            "query": query,
-            "response": result,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        return {"error": str(e)}
