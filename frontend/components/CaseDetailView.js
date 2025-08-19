@@ -98,12 +98,26 @@ export default function CaseDetailView({ caseId, onBack }) {
       <div className="p-6 border-b border-gray-200">
         <div className="flex justify-between items-start">
           <div>
-            <button
-              onClick={onBack}
-              className="mb-4 px-3 py-1 text-sm bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200"
-            >
-              ← Back to Cases
-            </button>
+            <div className="flex space-x-2 mb-4">
+              <button
+                onClick={onBack}
+                className="px-3 py-1 text-sm bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200"
+              >
+                ← Back to Cases
+              </button>
+              <button
+                onClick={() => {
+                  // First go back to cases, then the main page logic will show the chat
+                  onBack();
+                }}
+                className="px-3 py-1 text-sm bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200 flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                </svg>
+                Return to Chat
+              </button>
+            </div>
             <h1 className="text-2xl font-bold text-gray-800">Case Details</h1>
             <p className="text-blue-600 font-mono text-sm mt-1">{caseData.case.id}</p>
             <p className="text-gray-600 text-sm">Created: {formatDate(caseData.case.created_at)}</p>

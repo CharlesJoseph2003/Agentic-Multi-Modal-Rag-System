@@ -17,3 +17,24 @@ class VectorDB:
             }
         )
         self.collection = self.client.get_or_create_collection(name="Rag")
+    
+    def delete_case_from_chromadb(self, case_id: str) -> bool:
+        """Delete all documents associated with a case from ChromaDB"""
+        try:
+            # Get all documents for this case
+            results = self.collection.get(
+                where={"case_id": case_id}
+            )
+            
+            if results['ids']:
+                # Delete all documents with this case_id
+                self.collection.delete(
+                    where={"case_id": case_id}
+                )
+                print(f"Deleted {len(results['ids'])} documents from ChromaDB for case {case_id}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error deleting case from ChromaDB: {e}")
+            return False

@@ -7,11 +7,14 @@ from fastapi.responses import FileResponse
 from .text_embedding import Embeddings
 from .audio_processing import Audio
 from .image_processing import ImageProcessing
+from .chroma_db import VectorDB
 from .database import create_case_in_supabase
 from .utils import create_case_id, process_single_file_with_case, save_uploaded_file_to_temp, process_audio_for_case, \
-cleanup_temp_file, vectordb_output_processing, process_image_for_case, get_case_content_from_chromadb
+cleanup_temp_file, vectordb_output_processing, process_image_for_case, get_case_content_from_chromadb, delete_case_completely
 from .tasks import generate_tasks_with_ai, store_tasks_in_supabase
 from supabase import create_client, Client
+from pydantic import BaseModel  
+from smolagents import Tool, ToolCallingAgent, HfApiModel
 
 
 app = FastAPI()
@@ -24,6 +27,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+vector_db = VectorDB()
 text_embedding = Embeddings()
 audio_process = Audio()
 image_process = ImageProcessing()
@@ -95,20 +99,26 @@ image_files: List[UploadFile] = File(default=[])):
             finally:
                 cleanup_temp_file(tmp_path)
     try:
+        print(f"DEBUG: Starting task generation for case {case_id}")
+        
         # Get all content that was just added to ChromaDB
         case_content = await get_case_content_from_chromadb(case_id)
+        print(f"DEBUG: Retrieved case content with {len(case_content.get('documents', []))} docs, {len(case_content.get('audio_transcriptions', []))} audio, {len(case_content.get('image_descriptions', []))} images")
         
         # Generate tasks with AI
         generated_tasks = await generate_tasks_with_ai(case_content, case_id)
+        print(f"DEBUG: Generated {len(generated_tasks)} tasks")
         
         # Store tasks in Supabase
         if generated_tasks:
             stored_tasks = await store_tasks_in_supabase(generated_tasks, case_id)
+            print(f"DEBUG: Stored {len(stored_tasks)} tasks in database")
             results["tasks"] = {
                 "generated": len(stored_tasks),
                 "tasks": stored_tasks
             }
         else:
+            print(f"DEBUG: No tasks generated for case {case_id}")
             results["tasks"] = {
                 "generated": 0,
                 "tasks": []
@@ -123,22 +133,16 @@ image_files: List[UploadFile] = File(default=[])):
     
     return results
     
-@app.get("/cases")
+@app.get("/cases")  # Keep but simplify - just list cases
 async def list_cases(limit: int = 10, offset: int = 0):
-    """List all cases with pagination"""
-    
+    """Simple case listing"""
     cases = supabase.table('cases')\
-        .select("*, files(*), tasks(*)")\
+        .select("id, created_at")\
         .order('created_at', desc=True)\
         .range(offset, offset + limit - 1)\
         .execute()
     
-    return {
-        "cases": cases.data,
-        "total": len(cases.data),
-        "limit": limit,
-        "offset": offset
-    }
+    return {"cases": cases.data, "total": len(cases.data)}
 
 @app.get("/case/{case_id}")
 async def get_case_details(case_id: str):
@@ -386,92 +390,155 @@ async def serve_image(file_id: str):
         print(f"DEBUG: Image endpoint error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error serving image: {str(e)}")
 
-@app.get("/case/{case_id}/tasks")
-async def get_case_tasks(case_id: str):
-    """Get all tasks for a case"""
-    
-    tasks = supabase.table('tasks')\
-        .select("*")\
-        .eq('case_id', case_id)\
-        .order('priority')\
-        .execute()
-    
-    return {
-        "case_id": case_id,
-        "total_tasks": len(tasks.data),
-        "tasks": tasks.data
-    }
-
-@app.get("/tasks")
-async def get_all_tasks(
-    priority: Optional[str] = None,
-    category: Optional[str] = None,
-    limit: int = 50
-):
-    """Get all tasks with optional filters"""
-    
-    query = supabase.table('tasks').select("*")
-    
-    if priority:
-        query = query.eq('priority', priority)
-    if category:
-        query = query.eq('category', category)
-    
-    tasks = query.order('created_at', desc=True).limit(limit).execute()
-    
-    return {
-        "total_tasks": len(tasks.data),
-        "tasks": tasks.data
-    }
-    
-@app.get("/search/")
-async def search(query: str):
-    """Search across all case documents and return structured response"""
-    try:
-        print(f"DEBUG: Search query: {query}")
-        
-        # Get embeddings and search
-        output = text_embedding.get_query(query)
-        processed_text = vectordb_output_processing(output)
-        result = text_embedding.llm_processing(processed_text, query)
-        
-        # Structure the response for chat interface
-        return {
-            "response": result,
-            "query": query,
-            "sources": processed_text.get("sources", []) if isinstance(processed_text, dict) else [],
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        print(f"DEBUG: Search error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
-
 
    
-# @app.delete("/task/{task_id}")
-# async def delete_task(task_id: str):
-#     """Delete a specific task"""
-    
-#     result = supabase.table('tasks').delete().eq('id', task_id).execute()
-    
-#     if not result.data:
-#         raise HTTPException(status_code=404, detail="Task not found")
-    
-#     return {"message": "Task deleted successfully"}
+@app.delete("/cases/{case_id}")
+async def delete_case(case_id: str):
+    """Delete a case and all its associated data from both ChromaDB and Supabase"""
+    try:
+        success = await delete_case_completely(case_id)
+        
+        if success:
+            return {"message": f"Case {case_id} deleted successfully from all databases"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to completely delete case")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting case: {str(e)}")
 
-# @app.post("/uploadfiles/")
-# async def create_upload_files(files: Annotated[List[UploadFile], File(description="Multiple files as UploadFile")]):
-#     results = []
-#     for upload_file in files:
-#         result = await process_single_file(upload_file)
-#         results.append(result)
-#     return {"ingested": results}
-
-# @app.post("/uploadaudio/")
-# async def upload_audio(file_path):
-#     speech_conversion = audio_process.speech_to_text(file_path)
-#     cleaned_audio = audio_process.clean_audio(speech_conversion)
-#     embedded_audio = text_embedding.embed_text(cleaned_audio)
+class CaseDetailsTool(Tool):
+    name = "get_case_details"
+    description = "Get comprehensive details about a specific construction case including files, tasks, and content"
+    inputs = {"case_id": {"type": "string", "description": "The case ID to get details for"}}
+    output_type = "string"
     
+    def forward(self, case_id: str) -> str:
+        # Get all chunks for this case from ChromaDB
+        case_results = vector_db.collection.get(
+            where={"case_id": case_id},
+            include=["documents", "metadatas"]
+        )
+        
+        if not case_results['ids']:
+            return f"Case {case_id} not found"
+        
+        # Get tasks from Supabase
+        tasks = supabase.table('tasks').select("*").eq('case_id', case_id).execute()
+        
+        # Get files from Supabase
+        files = supabase.table('files').select("*").eq('case_id', case_id).execute()
+        
+        # Organize content
+        doc_count = len([m for m in case_results['metadatas'] if m.get('doc_type') == 'document'])
+        task_count = len(tasks.data)
+        audio_count = len([f for f in files.data if f.get('file_type') == 'audio'])
+        image_count = len([f for f in files.data if f.get('file_type') == 'image'])
+        
+        # Build summary
+        summary = f"""Case {case_id} Summary:
+- Documents: {doc_count} files
+- Tasks: {task_count} (High: {len([t for t in tasks.data if t.get('priority') == 'high'])})
+- Audio files: {audio_count}
+- Images: {image_count}
+- Created: {files.data[0]['created_at'] if files.data else 'Unknown'}
 
+Key content: {case_results['documents'][0][:200] if case_results['documents'] else 'No content'}..."""
+        
+        return summary
+
+class SearchDocumentsTool(Tool):
+    name = "search_documents"
+    description = "Search across all construction documents, tasks, and content"
+    inputs = {"query": {"type": "string", "description": "Search query"}}
+    output_type = "string"
+    
+    def forward(self, query: str) -> str:
+        # Use existing search logic
+        output = text_embedding.get_query(query)
+        processed = vectordb_output_processing(output)
+        result = text_embedding.llm_processing(processed, query)
+        
+        return result
+
+class ListCasesTool(Tool):
+    name = "list_all_cases"
+    description = "List all available construction cases"
+    inputs = {}
+    output_type = "string"
+    
+    def forward(self) -> str:
+        cases = supabase.table('cases').select("id, created_at").execute()
+        case_list = [f"- {c['id']} (created: {c['created_at']})" for c in cases.data]
+        return f"Available cases ({len(cases.data)} total):\n" + "\n".join(case_list)
+
+class TaskAnalysisTool(Tool):
+    name = "analyze_tasks"
+    description = "Get task analysis across cases or for a specific case"
+    inputs = {
+        "case_id": {"type": "string", "description": "Optional case ID to filter tasks", "nullable": True}
+    }
+    output_type = "string"
+    
+    def forward(self, case_id: str = None) -> str:
+        query = supabase.table('tasks').select("*")
+        if case_id:
+            query = query.eq('case_id', case_id)
+        
+        tasks = query.execute()
+        
+        if not tasks.data:
+            return "No tasks found"
+        
+        # Analyze tasks
+        by_priority = {"high": [], "medium": [], "low": []}
+        for task in tasks.data:
+            priority = task.get('priority', 'low')
+            by_priority[priority].append(task)
+        
+        summary = f"Task Analysis:\n"
+        summary += f"Total tasks: {len(tasks.data)}\n"
+        summary += f"- High priority: {len(by_priority['high'])}\n"
+        summary += f"- Medium priority: {len(by_priority['medium'])}\n"
+        summary += f"- Low priority: {len(by_priority['low'])}\n\n"
+        
+        # Show high priority tasks
+        if by_priority['high']:
+            summary += "High Priority Tasks:\n"
+            for task in by_priority['high'][:5]:
+                summary += f"- {task.get('title', 'Untitled')}: {task.get('description', '')[:100]}\n"
+        
+        return summary
+
+# Initialize tools
+case_details_tool = CaseDetailsTool()
+search_tool = SearchDocumentsTool()
+list_cases_tool = ListCasesTool()
+task_tool = TaskAnalysisTool()
+
+# Create the agent
+model = HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
+agent = ToolCallingAgent(
+    tools=[case_details_tool, search_tool, list_cases_tool, task_tool],
+    model=model,
+
+)
+
+# Add request model for the endpoint
+class QueryRequest(BaseModel):
+    query: str
+
+# Single smart endpoint
+@app.post("/search")
+async def intelligent_query(request: QueryRequest):
+    """Single endpoint that handles all queries intelligently"""
+    try:
+        # Let the agent handle everything
+        result = agent.run(request.query)
+        
+        return {
+            "query": request.query,
+            "response": result,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {"error": str(e)}

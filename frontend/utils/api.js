@@ -113,6 +113,24 @@ class ApiClient {
       throw error;
     }
   }
+
+  async deleteCase(caseId) {
+    try {
+      const response = await fetch(`${this.baseURL}/cases/${caseId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting case:', error);
+      throw error;
+    }
+  }
 }
 
 export const apiClient = new ApiClient();

@@ -78,3 +78,34 @@ async def upload_file_to_supabase(
         raise Exception("Failed to save file metadata to database")
     
     return db_result.data[0]
+
+async def delete_case_from_supabase(case_id: str) -> bool:
+    """Delete a case and all its associated data from Supabase"""
+    try:
+        # Get all files associated with this case
+        files_result = supabase.table('files').select('storage_path').eq('case_id', case_id).execute()
+        
+        # Delete files from storage
+        if files_result.data:
+            for file_record in files_result.data:
+                storage_path = file_record['storage_path']
+                try:
+                    supabase.storage.from_('construction_files').remove([storage_path])
+                except Exception as e:
+                    print(f"Warning: Could not delete file {storage_path}: {e}")
+        
+        # Delete from database tables in order (respecting foreign key constraints)
+        # Delete tasks first
+        supabase.table('tasks').delete().eq('case_id', case_id).execute()
+        
+        # Delete files metadata
+        supabase.table('files').delete().eq('case_id', case_id).execute()
+        
+        # Delete the case itself
+        result = supabase.table('cases').delete().eq('id', case_id).execute()
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error deleting case from Supabase: {e}")
+        return False

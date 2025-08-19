@@ -7,7 +7,7 @@ from .text_embedding import Embeddings
 from .chroma_db import VectorDB
 from .audio_processing import Audio
 from .image_processing import ImageProcessing
-from .database import upload_file_to_supabase
+from .database import upload_file_to_supabase, delete_case_from_supabase
 
 CHUNK_DIR = Path("uploads/chunks")
 CHUNK_DIR.mkdir(parents=True, exist_ok=True)
@@ -321,3 +321,23 @@ async def get_case_content_from_chromadb(case_id: str) -> Dict[str, List[Dict]]:
             organized_content['documents'].append(content_item)
     
     return organized_content
+
+async def delete_case_completely(case_id: str) -> bool:
+    """Delete a case and all its data from both ChromaDB and Supabase"""
+    try:
+        # Delete from ChromaDB first
+        chromadb_success = vector_db.delete_case_from_chromadb(case_id)
+        
+        # Delete from Supabase (includes files and metadata)
+        supabase_success = await delete_case_from_supabase(case_id)
+        
+        if chromadb_success and supabase_success:
+            print(f"Successfully deleted case {case_id} from both databases")
+            return True
+        else:
+            print(f"Partial deletion for case {case_id}: ChromaDB={chromadb_success}, Supabase={supabase_success}")
+            return False
+            
+    except Exception as e:
+        print(f"Error during complete case deletion: {e}")
+        return False

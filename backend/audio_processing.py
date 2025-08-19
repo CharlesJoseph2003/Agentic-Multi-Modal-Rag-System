@@ -8,7 +8,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API")
 client = OpenAI(api_key = OPENAI_API_KEY)
 
 class Audio:
-    def __init__(self, model="gpt-4o-transcribe", clean_model="gpt-4"):
+    def __init__(self, model="whisper-1", clean_model="gpt-4"):
         self.model=model
         self.clean_model=clean_model
 

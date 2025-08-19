@@ -23,6 +23,16 @@ text_embedding = Embeddings()
 async def generate_tasks_with_ai(case_content: Dict[str, List[Dict]], case_id: str) -> List[Dict]:
     """Use AI to analyze case content and generate tasks"""
     
+    print(f"DEBUG: Starting task generation for case {case_id}")
+    print(f"DEBUG: Case content keys: {list(case_content.keys())}")
+    print(f"DEBUG: Content counts - docs: {len(case_content.get('documents', []))}, audio: {len(case_content.get('audio_transcriptions', []))}, images: {len(case_content.get('image_descriptions', []))}")
+    
+    # Check if we have any content to work with
+    total_content = len(case_content.get('documents', [])) + len(case_content.get('audio_transcriptions', [])) + len(case_content.get('image_descriptions', []))
+    if total_content == 0:
+        print(f"DEBUG: No content found for case {case_id}, skipping task generation")
+        return []
+    
     # Build context for LLM
     context = "Analyze this construction case and generate actionable tasks:\n\n"
     
@@ -47,45 +57,67 @@ async def generate_tasks_with_ai(case_content: Dict[str, List[Dict]], case_id: s
     # Create prompt with explicit JSON instruction
     prompt = f"""{context}
 
-Based on this content, generate specific actionable tasks. Focus on:
+Based on this content, generate 2-5 specific actionable tasks. Focus on:
 1. Safety issues requiring immediate attention
 2. Compliance or regulatory requirements
 3. Repairs or maintenance needed
 4. Required documentation or reports
 5. Follow-up actions needed
 
-Return ONLY a valid JSON object with a 'tasks' array. No other text.
-Example format:
+CRITICAL: You must respond with ONLY valid JSON in this exact format. Do not include any explanatory text before or after the JSON:
+
 {{
     "tasks": [
         {{
-            "title": "Task title",
-            "description": "Task description",
+            "title": "Inspect structural integrity",
+            "description": "Detailed description of what needs to be done",
             "priority": "high",
             "category": "safety",
-            "reasoning": "Why this task is needed"
+            "reasoning": "Why this task is important"
         }}
     ]
-}}"""
+}}
 
-    # Call OpenAI without response_format
+Priority must be: "high", "medium", or "low"
+Category must be: "safety", "compliance", "maintenance", "documentation", or "general"
+"""
+
+    # Call OpenAI with temperature for more consistent results
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": "You are a construction site safety and compliance expert. Generate actionable tasks from case documentation. Return only valid JSON."},
+            {"role": "system", "content": "You are a construction site safety and compliance expert. You MUST respond with valid JSON only. No explanations, no markdown, just pure JSON."},
             {"role": "user", "content": prompt}
-        ]
-        # Removed response_format parameter
+        ],
+        temperature=0.3,  # Lower temperature for more consistent outputs
+        max_tokens=1000
     )
 
     # Parse response
     try:
         response_text = response.choices[0].message.content
+        print(f"DEBUG: Raw AI response: {response_text}")
+        
         # Clean up response if needed (remove markdown code blocks)
         if response_text.startswith("```json"):
             response_text = response_text.replace("```json", "").replace("```", "")
+        elif response_text.startswith("```"):
+            response_text = response_text.replace("```", "")
         
-        tasks_data = json.loads(response_text.strip())
+        # Remove any leading/trailing whitespace
+        response_text = response_text.strip()
+        
+        # Try to find JSON in the response if it's mixed with other text
+        if not response_text.startswith('{'):
+            # Look for JSON object in the response
+            import re
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                response_text = json_match.group(0)
+        
+        print(f"DEBUG: Cleaned response: {response_text}")
+        
+        tasks_data = json.loads(response_text)
         
         # Get the list of tasks
         if isinstance(tasks_data, list):
@@ -93,11 +125,15 @@ Example format:
         elif isinstance(tasks_data, dict) and 'tasks' in tasks_data:
             tasks = tasks_data['tasks']
         else:
+            print(f"DEBUG: Unexpected tasks_data format: {type(tasks_data)}")
             tasks = []
             
     except json.JSONDecodeError as e:
         print(f"JSON decode error: {e}")
         print(f"Response was: {response.choices[0].message.content}")
+        tasks = []
+    except Exception as e:
+        print(f"Unexpected error parsing tasks: {e}")
         tasks = []
     
     # Add case_id and source chunks to each task
