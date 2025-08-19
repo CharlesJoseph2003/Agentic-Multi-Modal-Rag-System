@@ -11,11 +11,18 @@ export default function ChatInterface({ caseId }) {
   const inputRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Small delay to ensure DOM is updated before scrolling
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, [messages]);
   
   // Focus input when component mounts
@@ -86,7 +93,7 @@ export default function ChatInterface({ caseId }) {
   return (
     <div className="flex flex-col h-full border border-gray-200 rounded-lg bg-white overflow-hidden">
       {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-center text-gray-500 p-8">
             <div>

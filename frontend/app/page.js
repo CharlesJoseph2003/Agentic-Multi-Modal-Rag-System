@@ -37,7 +37,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="h-screen bg-gray-100 flex flex-col overflow-hidden">
       {/* Header */}
       <header className="bg-white shadow-md border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -58,11 +58,11 @@ export default function Home() {
       </header>
 
       {/* Main Content - Sidebar Layout */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden h-[calc(100vh-64px)]">
         {/* Left Sidebar - Cases List */}
-        <div className="w-80 bg-white h-[calc(100vh-64px)] flex flex-col shadow-lg z-5">
+        <div className="w-80 bg-white flex flex-col shadow-lg z-5">
           {/* Sidebar Header with Plus Button */}
-          <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-white">
+          <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-white flex-shrink-0">
             <h2 className="font-bold text-gray-800 text-lg">Cases</h2>
             <button 
               onClick={handleNewCaseClick}
@@ -76,7 +76,7 @@ export default function Home() {
           </div>
           
           {/* Cases List */}
-          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-white to-gray-50">
+          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-white to-gray-50 min-h-0">
             <CasesList 
               refreshTrigger={refreshTrigger}
               onCaseSelect={handleCaseSelect}

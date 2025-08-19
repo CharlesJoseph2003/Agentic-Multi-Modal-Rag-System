@@ -14,7 +14,7 @@ cleanup_temp_file, vectordb_output_processing, process_image_for_case, get_case_
 from .tasks import generate_tasks_with_ai, store_tasks_in_supabase
 from supabase import create_client, Client
 from pydantic import BaseModel  
-from smolagents import Tool, ToolCallingAgent, HfApiModel
+from smolagents import Tool, ToolCallingAgent, HfApiModel, LiteLLMModel
 
 
 app = FastAPI()
@@ -133,16 +133,32 @@ image_files: List[UploadFile] = File(default=[])):
     
     return results
     
-@app.get("/cases")  # Keep but simplify - just list cases
+@app.get("/cases")  # Enhanced case listing with file counts
 async def list_cases(limit: int = 10, offset: int = 0):
-    """Simple case listing"""
+    """Case listing with file and task counts"""
     cases = supabase.table('cases')\
         .select("id, created_at")\
         .order('created_at', desc=True)\
         .range(offset, offset + limit - 1)\
         .execute()
     
-    return {"cases": cases.data, "total": len(cases.data)}
+    # Enhance each case with file and task counts
+    enhanced_cases = []
+    for case in cases.data:
+        case_id = case['id']
+        
+        # Get files for this case
+        files = supabase.table('files').select("file_type").eq('case_id', case_id).execute()
+        
+        # Get tasks for this case
+        tasks = supabase.table('tasks').select("id").eq('case_id', case_id).execute()
+        
+        # Add file and task information
+        case['files'] = files.data
+        case['tasks'] = tasks.data
+        enhanced_cases.append(case)
+    
+    return {"cases": enhanced_cases, "total": len(enhanced_cases)}
 
 @app.get("/case/{case_id}")
 async def get_case_details(case_id: str):
@@ -422,27 +438,50 @@ class CaseDetailsTool(Tool):
         if not case_results['ids']:
             return f"Case {case_id} not found"
         
-        # Get tasks from Supabase
+        # Get tasks and files from Supabase
         tasks = supabase.table('tasks').select("*").eq('case_id', case_id).execute()
-        
-        # Get files from Supabase
         files = supabase.table('files').select("*").eq('case_id', case_id).execute()
         
-        # Organize content
-        doc_count = len([m for m in case_results['metadatas'] if m.get('doc_type') == 'document'])
-        task_count = len(tasks.data)
-        audio_count = len([f for f in files.data if f.get('file_type') == 'audio'])
-        image_count = len([f for f in files.data if f.get('file_type') == 'image'])
+        # Organize content by type
+        doc_count = 0
+        audio_transcriptions = []
+        image_descriptions = []
+        documents = []
         
-        # Build summary
-        summary = f"""Case {case_id} Summary:
+        for i, metadata in enumerate(case_results['metadatas']):
+            doc_type = metadata.get('doc_type', 'document')
+            content = case_results['documents'][i]
+            
+            if doc_type == 'audio_transcription':
+                audio_transcriptions.append(content)
+            elif doc_type == 'image':
+                image_descriptions.append(content)
+            elif doc_type == 'document':
+                documents.append(content)
+                doc_count += 1
+        
+        # Build comprehensive summary
+        summary = f"""Case {case_id} Details:
 - Documents: {doc_count} files
-- Tasks: {task_count} (High: {len([t for t in tasks.data if t.get('priority') == 'high'])})
-- Audio files: {audio_count}
-- Images: {image_count}
-- Created: {files.data[0]['created_at'] if files.data else 'Unknown'}
-
-Key content: {case_results['documents'][0][:200] if case_results['documents'] else 'No content'}..."""
+- Tasks: {len(tasks.data)} (High: {len([t for t in tasks.data if t.get('priority') == 'high'])})
+- Audio files: {len([f for f in files.data if f.get('file_type') == 'audio'])}
+- Images: {len([f for f in files.data if f.get('file_type') == 'image'])}"""
+        
+        # Add audio transcriptions if available
+        if audio_transcriptions:
+            summary += f"\n\nAudio Transcriptions:\n"
+            for i, transcription in enumerate(audio_transcriptions[:3]):  # First 3
+                summary += f"{i+1}. {transcription[:300]}...\n"
+        
+        # Add image descriptions if available
+        if image_descriptions:
+            summary += f"\n\nImage Descriptions:\n"
+            for i, description in enumerate(image_descriptions[:3]):  # First 3
+                summary += f"{i+1}. {description[:200]}...\n"
+        
+        # Add document content
+        if documents:
+            summary += f"\n\nDocument Content:\n{documents[0][:300]}..."
         
         return summary
 
@@ -516,7 +555,8 @@ list_cases_tool = ListCasesTool()
 task_tool = TaskAnalysisTool()
 
 # Create the agent
-model = HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
+# model = HfApiModel(model_id=""meta-llama/Llama-3.3-70B-Instruct"")  
+model = LiteLLMModel(model_id="gpt-4", api_key=os.getenv("OPENAI_API"))
 agent = ToolCallingAgent(
     tools=[case_details_tool, search_tool, list_cases_tool, task_tool],
     model=model,

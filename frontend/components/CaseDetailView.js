@@ -122,26 +122,6 @@ export default function CaseDetailView({ caseId, onBack }) {
             <p className="text-blue-600 font-mono text-sm mt-1">{caseData.case.id}</p>
             <p className="text-gray-600 text-sm">Created: {formatDate(caseData.case.created_at)}</p>
           </div>
-          <div className="text-right">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="text-center">
-                <div className="font-semibold text-lg">{caseData.content_summary.document_count}</div>
-                <div className="text-gray-500">Documents</div>
-              </div>
-              <div className="text-center">
-                <div className="font-semibold text-lg">{caseData.content_summary.audio_count}</div>
-                <div className="text-gray-500">Audio</div>
-              </div>
-              <div className="text-center">
-                <div className="font-semibold text-lg">{caseData.content_summary.image_count}</div>
-                <div className="text-gray-500">Images</div>
-              </div>
-              <div className="text-center">
-                <div className="font-semibold text-lg">{caseData.content_summary.task_count}</div>
-                <div className="text-gray-500">Tasks</div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 

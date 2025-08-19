@@ -122,8 +122,8 @@ export default function CasesList({ refreshTrigger, onCaseSelect, isSidebar = fa
                 // Enhanced sidebar view
                 <div className="flex flex-col p-2">
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold text-gray-800 text-base truncate">
-                      Case {case_item.id.substring(0, 8)}
+                    <span className="font-semibold text-gray-800 text-xs break-all leading-tight">
+                      {case_item.id}
                     </span>
                     <div className="flex items-center gap-2">
                       <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full font-medium">

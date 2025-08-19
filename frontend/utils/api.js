@@ -65,39 +65,6 @@ class ApiClient {
     }
   }
 
-  async getCaseTasks(caseId) {
-    try {
-      const response = await fetch(`${this.baseURL}/case/${caseId}/tasks`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching case tasks:', error);
-      throw error;
-    }
-  }
-
-  async getAllTasks(priority = null, category = null, limit = 50) {
-    try {
-      let url = `${this.baseURL}/tasks?limit=${limit}`;
-      if (priority) url += `&priority=${priority}`;
-      if (category) url += `&category=${category}`;
-
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      throw error;
-    }
-  }
 
   async search(query) {
     try {
