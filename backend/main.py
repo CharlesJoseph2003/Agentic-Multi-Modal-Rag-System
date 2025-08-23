@@ -26,7 +26,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000", 
         "http://127.0.0.1:3000",
-        "https://agentic-multi-modal-rag-system.vercel.app"
+        "https://agentic-multi-modal-rag-system.vercel.app",
+        "https://agentic-multi-modal-rag-system-g1657j32y.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
