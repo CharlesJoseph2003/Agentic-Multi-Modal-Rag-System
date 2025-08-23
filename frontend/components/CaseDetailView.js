@@ -161,13 +161,6 @@ export default function CaseDetailView({ caseId, onBack }) {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <a
-                        href={`http://127.0.0.1:8000/download/${doc.id}`}
-                        download={doc.filename}
-                        className="px-3 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                      >
-                        Download PDF
-                      </a>
                       {doc.total_chunks && (
                         <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
                           {doc.total_chunks} chunks

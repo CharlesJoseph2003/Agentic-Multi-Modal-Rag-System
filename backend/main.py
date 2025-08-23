@@ -264,30 +264,6 @@ async def get_case_details(case_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving case details: {str(e)}")
 
-@app.get("/download/{file_id}")
-async def download_file(file_id: str):
-    """Download a file by its ID"""
-    try:
-        # Get file info from Supabase
-        file_record = supabase.table('files').select("*").eq('id', file_id).single().execute()
-        
-        if not file_record.data:
-            raise HTTPException(status_code=404, detail="File not found")
-        
-        file_path = file_record.data.get('storage_path')
-        original_filename = file_record.data.get('original_filename')
-                
-        if not file_path or not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail=f"File not found on disk: {file_path}")
-        
-        return FileResponse(
-            path=file_path,
-            filename=original_filename,
-            media_type='application/octet-stream'
-        )
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
 
 @app.get("/audio/{file_id}")
 async def serve_audio(file_id: str):
