@@ -97,3 +97,7 @@ Frontend (Next.js) → FastAPI Backend → Processing Pipeline
 ```
 
 The system maintains context across all modalities, enabling comprehensive understanding of construction projects and intelligent response generation.
+
+## 🚀 Live Demo
+- **Frontend**: [https://agentic-multi-modal-rag-system.vercel.app](https://agentic-multi-modal-rag-system.vercel.app)
+- **Backend API**: [https://chaero.duckdns.org](https://chaero.duckdns.org)
