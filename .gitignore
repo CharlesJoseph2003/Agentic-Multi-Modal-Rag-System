@@ -78,14 +78,12 @@ docs/site/
 *.h5
 *.hdf5
 *.pkl
-*.joblib
 
 # Data files (potentially large or sensitive)
 data/raw/
 data/processed/
 *.csv
-*.json
-*.jsonl
+# *.json (commented out to allow package.json files)
 *.parquet
 *.db
 *.sqlite
