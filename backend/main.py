@@ -221,7 +221,7 @@ async def get_case_details(case_id: str):
                     if matching_content:
                         # Combine all chunks for this file
                         full_content = "\n\n".join([chunk['text'] for chunk in matching_content])
-                        file_info['content'] = full_content[:2000] + "..." if len(full_content) > 2000 else full_content
+                        file_info['content'] = full_content[:10000] + "..." if len(full_content) > 10000 else full_content
                         file_info['total_chunks'] = len(matching_content)
                     else:
                         print(f"DEBUG: No matching content found for {file_record['original_filename']}")
@@ -235,7 +235,7 @@ async def get_case_details(case_id: str):
                     if matching_content:
                         # Combine all chunks for this file
                         full_content = "\n\n".join([chunk['text'] for chunk in matching_content])
-                        file_info['content'] = full_content[:2000] + "..." if len(full_content) > 2000 else full_content
+                        file_info['content'] = full_content[:10000] + "..." if len(full_content) > 10000 else full_content
                         file_info['total_chunks'] = len(matching_content)
                 
                 organized_files[file_type].append(file_info)
