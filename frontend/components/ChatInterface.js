@@ -49,7 +49,7 @@ export default function ChatInterface({ caseId }) {
 
     try {
       // Call the search endpoint
-      const response = await fetch(`http://127.0.0.1:8000/search`, {
+      const response = await fetch(`https://chaero.duckdns.org/search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

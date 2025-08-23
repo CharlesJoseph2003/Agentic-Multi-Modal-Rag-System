@@ -206,9 +206,9 @@ export default function CaseDetailView({ caseId, onBack }) {
                       className="w-full"
                       preload="metadata"
                     >
-                      <source src={`http://127.0.0.1:8000/audio/${audio.id}`} type="audio/mpeg" />
-                      <source src={`http://127.0.0.1:8000/audio/${audio.id}`} type="audio/mp4" />
-                      <source src={`http://127.0.0.1:8000/audio/${audio.id}`} type="audio/wav" />
+                      <source src={`https://chaero.duckdns.org/audio/${audio.id}`} type="audio/mpeg" />
+                      <source src={`https://chaero.duckdns.org/audio/${audio.id}`} type="audio/mp4" />
+                      <source src={`https://chaero.duckdns.org/audio/${audio.id}`} type="audio/wav" />
                       Your browser does not support the audio element.
                     </audio>
                   </div>
@@ -247,7 +247,7 @@ export default function CaseDetailView({ caseId, onBack }) {
                   {/* Image Preview */}
                   <div className="mb-4">
                     <img 
-                      src={`http://127.0.0.1:8000/image/${image.id}`}
+                      src={`https://chaero.duckdns.org/image/${image.id}`}
                       alt={image.filename}
                       className="max-w-full h-auto rounded-lg shadow-sm border border-gray-200"
                       style={{ maxHeight: '400px' }}
