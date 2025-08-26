@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../utils/api';
 
-export default function CasesList({ refreshTrigger, onCaseSelect, isSidebar = false }) {
+export default function CasesList({ refreshTrigger, onCaseSelect, onCaseDeleted, isSidebar = false }) {
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -48,14 +48,21 @@ export default function CasesList({ refreshTrigger, onCaseSelect, isSidebar = fa
       setDeletingCaseId(caseId);
       await apiClient.deleteCase(caseId);
       
-      // Remove the case from the local state
+      // Remove the case from the local state immediately
       setCases(prevCases => prevCases.filter(c => c.id !== caseId));
+      
+      // Notify parent component to trigger refresh if needed
+      if (onCaseDeleted) {
+        onCaseDeleted(caseId);
+      }
       
       // Show success message
       alert('Case deleted successfully');
     } catch (error) {
       console.error('Error deleting case:', error);
       alert('Failed to delete case. Please try again.');
+      // Refresh the list in case of error to ensure consistency
+      fetchCases();
     } finally {
       setDeletingCaseId(null);
     }

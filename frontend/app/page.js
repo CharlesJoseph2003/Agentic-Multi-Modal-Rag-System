@@ -19,6 +19,17 @@ export default function Home() {
     setShowCaseUpload(false);
   };
 
+  const handleCaseDeleted = (deletedCaseId) => {
+    console.log('Case deleted:', deletedCaseId);
+    // Trigger refresh of cases list to ensure consistency
+    setRefreshTrigger(prev => prev + 1);
+    // If the deleted case was selected, clear the selection
+    if (selectedCase && selectedCase.id === deletedCaseId) {
+      setSelectedCase(null);
+      setShowCaseDetail(false);
+    }
+  };
+
   const handleCaseSelect = (caseItem) => {
     setSelectedCase(caseItem);
     setShowCaseDetail(true);
@@ -84,6 +95,7 @@ export default function Home() {
             <CasesList 
               refreshTrigger={refreshTrigger}
               onCaseSelect={handleCaseSelect}
+              onCaseDeleted={handleCaseDeleted}
               isSidebar={true}
             />
           </div>
