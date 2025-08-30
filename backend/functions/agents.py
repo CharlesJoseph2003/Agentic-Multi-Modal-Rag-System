@@ -1,4 +1,3 @@
-
 import os
 from smolagents import Tool, ToolCallingAgent, LiteLLMModel
 from .text_embedding import Embeddings
@@ -143,4 +142,3 @@ class TaskAnalysisTool(Tool):
                 summary += f"- {task.get('title', 'Untitled')}: {task.get('description', '')[:100]}\n"
         
         return summary
-
