@@ -100,4 +100,4 @@ The system maintains context across all modalities, enabling comprehensive under
 
 ## 🚀 Live Demo
 - **Frontend**: [https://agentic-multi-modal-rag-system.vercel.app](https://agentic-multi-modal-rag-system.vercel.app)
-- **Backend API**: [https://chaero.duckdns.org](https://chaero.duckdns.org)
+- **Backend API**: [https://chaero.duckdns.org\docs](https://chaero.duckdns.org\docs)
